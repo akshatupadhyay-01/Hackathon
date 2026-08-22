@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="50%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.35" flood-color="#000000" />
+    </filter>
+  </defs>
+  
+  <!-- Rounded App Icon Background -->
+  <rect width="512" height="512" rx="115" fill="url(#bgGrad)" />
+  
+  <!-- Subtle Tribal Pattern Border Ring -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="6" stroke-dasharray="14 10" />
+  
+  <!-- Mountain Silhouette / Parasnath Hills -->
+  <path d="M96 350 L190 230 L270 310 L340 210 L416 350 Z" fill="#022c22" opacity="0.4" />
+  <path d="M140 350 L220 250 L280 320 L350 240 L400 350 Z" fill="#064e3b" opacity="0.6" />
+  
+  <!-- Central Emblem: Sacred Sal Tree Leaf & Glowing Sun -->
+  <g filter="url(#shadow)">
+    <!-- Sun / Radiance -->
+    <circle cx="256" cy="170" r="44" fill="url(#goldGrad)" />
+    <circle cx="256" cy="170" r="54" fill="none" stroke="url(#goldGrad)" stroke-width="4" opacity="0.6" stroke-dasharray="6 6" />
+    
+    <!-- Stylized Eco Leaf & River / Map Pin Shape -->
+    <!-- Main Leaf Body -->
+    <path d="M256 120 C180 180 160 280 256 370 C352 280 332 180 256 120 Z" fill="#10b981" opacity="0.95" stroke="#ecfdf5" stroke-width="6" />
+    
+    <!-- Central Leaf Vein / Compass Needle -->
+    <path d="M256 150 L256 350" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <path d="M256 200 L210 230" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    <path d="M256 200 L302 230" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    <path d="M256 250 L200 290" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    <path d="M256 250 L312 290" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    <path d="M256 295 L220 330" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    <path d="M256 295 L292 330" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    
+    <!-- Sparkling Star / GIS GPS pin head -->
+    <circle cx="256" cy="160" r="12" fill="#ffffff" />
+  </g>
+  
+  <!-- Subtle Water Wave at Bottom -->
+  <path d="M96 380 Q 176 360, 256 380 T 416 380" fill="none" stroke="#6ee7b7" stroke-width="7" stroke-linecap="round" opacity="0.85" />
+  <path d="M120 405 Q 188 390, 256 405 T 392 405" fill="none" stroke="#a7f3d0" stroke-width="5" stroke-linecap="round" opacity="0.6" />
+  
+  <!-- Eco Tourism Badge Text -->
+  <text x="256" y="455" text-anchor="middle" fill="#ecfdf5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="800" letter-spacing="4">JHARKHAND ECO</text>
+</svg>

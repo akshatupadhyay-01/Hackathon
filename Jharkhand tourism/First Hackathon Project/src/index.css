@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Base theme transition helper and App layout */
+body {
+  transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-touch-callout: none;
+}
+
+/* Native App touch feel for interactive elements */
+button, a {
+  touch-action: manipulation;
+}
+
+@media print {
+  /* Hide non-printable UI elements */
+  header, footer, nav, button, .no-print, [role="dialog"] > div > div:not(#digital-eco-pass-printable) {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  #digital-eco-pass-printable {
+    box-shadow: none !important;
+    border: 2px solid #064e3b !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+}
+
