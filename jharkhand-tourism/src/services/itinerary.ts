@@ -1,18 +1,40 @@
 import { ItineraryRequest, ItineraryResponse, ItineraryDayPlan } from '../types/index';
 import { SEED_DESTINATIONS } from '../data/jharkhand';
 import { enrichItineraryWithTravelTimes } from './routing';
+import { sanitizePromptInput, sanitizeStringList, safeLogger, safeContains, SECURITY_LIMITS } from '../lib/security';
 
 export async function requestItineraryPlan(request: ItineraryRequest): Promise<ItineraryResponse> {
+  // Sanitize payload before transmission (SSDI and ReDoS protection)
+  const sanitizedRequest: ItineraryRequest = {
+    days: Math.max(1, Math.min(SECURITY_LIMITS.MAX_ITINERARY_DAYS, Math.floor(Number(request.days) || 3))),
+    budget: Math.max(SECURITY_LIMITS.MIN_BUDGET_INR, Math.min(SECURITY_LIMITS.MAX_BUDGET_INR, Number(request.budget) || 12000)),
+    guests: Math.max(1, Math.min(SECURITY_LIMITS.MAX_ITINERARY_GUESTS, Math.floor(Number(request.guests) || 2))),
+    startingLocation: sanitizePromptInput(request.startingLocation || 'Ranchi', 50) || 'Ranchi',
+    startingLocationCoords: request.startingLocationCoords,
+    interests: sanitizeStringList(request.interests || ['Eco Tourism', 'Waterfalls'], 6, 30),
+    travelGroup: (['solo', 'couple', 'family', 'friends'].includes(request.travelGroup || '')
+      ? request.travelGroup
+      : 'couple') as 'solo' | 'couple' | 'family' | 'friends',
+    tourismType: (['waterfalls', 'sacred_temples', 'wildlife_eco', 'hills_valleys', 'eco', 'cultural', 'adventure', 'spiritual', 'all'].includes(request.tourismType || '')
+      ? request.tourismType
+      : 'all') as any,
+  };
+
   let basePlan: ItineraryResponse | null = null;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout for LPDOS prevention
+
     const response = await fetch('/api/itinerary', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify(sanitizedRequest),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (response.ok) {
       const data: ItineraryResponse = await response.json();
@@ -21,17 +43,17 @@ export async function requestItineraryPlan(request: ItineraryRequest): Promise<I
       }
     }
   } catch (netErr) {
-    console.warn('Network call to /api/itinerary failed, using client-side resilient generator:', netErr);
+    safeLogger.warn('Network call to /api/itinerary failed, using client-side resilient generator:', netErr);
   }
 
   // Graceful client-side fallback planner if API is down
   if (!basePlan) {
-    basePlan = generateClientFallbackPlan(request);
+    basePlan = generateClientFallbackPlan(sanitizedRequest);
   }
 
   // Enrich base itinerary with real OSRM road travel calculations, distances, and timeline
   try {
-    const startLoc = request.startingLocationCoords || request.startingLocation || 'Ranchi';
+    const startLoc = sanitizedRequest.startingLocationCoords || sanitizedRequest.startingLocation || 'Ranchi';
     const enriched = await enrichItineraryWithTravelTimes(
       basePlan,
       startLoc,
@@ -39,26 +61,29 @@ export async function requestItineraryPlan(request: ItineraryRequest): Promise<I
     );
     return enriched;
   } catch (routingErr) {
-    console.warn('Failed to enrich travel times:', routingErr);
+    safeLogger.warn('Failed to enrich travel times:', routingErr);
     return basePlan;
   }
 }
 
 function generateClientFallbackPlan(req: ItineraryRequest): ItineraryResponse {
-  const days = Math.max(1, Math.min(14, Math.floor(Number(req.days) || 3)));
-  const budget = Math.max(1000, Number(req.budget) || 12000);
-  const guests = Math.max(1, Math.min(50, Math.floor(Number(req.guests) || 2)));
+  const days = Math.max(1, Math.min(SECURITY_LIMITS.MAX_ITINERARY_DAYS, Math.floor(Number(req.days) || 3)));
+  const budget = Math.max(SECURITY_LIMITS.MIN_BUDGET_INR, Math.min(SECURITY_LIMITS.MAX_BUDGET_INR, Number(req.budget) || 12000));
+  const guests = Math.max(1, Math.min(SECURITY_LIMITS.MAX_ITINERARY_GUESTS, Math.floor(Number(req.guests) || 2)));
   const startingLocation = req.startingLocation || (req.startingLocationCoords?.isGps ? 'Your Location' : 'Ranchi');
   const interests = req.interests || ['Eco Tourism', 'Waterfalls'];
   const travelGroup = req.travelGroup || (guests === 1 ? 'solo' : guests === 2 ? 'couple' : 'family');
   const tourismType = req.tourismType || 'all';
 
-  // Smart Circuit Clustering for Jharkhand
+  // Smart Circuit Clustering for Jharkhand with linear string searches (ReDoS-safe)
   let filtered: typeof SEED_DESTINATIONS = [];
 
-  if (tourismType === 'wildlife_eco' || (interests.some(i => /wildlife|safari/i.test(i)))) {
+  const hasWildlife = interests.some((i) => safeContains(i, 'wildlife') || safeContains(i, 'safari'));
+  const hasWaterfall = interests.some((i) => safeContains(i, 'waterfall') || safeContains(i, 'falls'));
+
+  if (tourismType === 'wildlife_eco' || hasWildlife) {
     filtered = SEED_DESTINATIONS.filter(d => ['betla-national-park', 'netarhat-sunset-point', 'saranda-forest-kiriburu'].includes(d.slug));
-  } else if (tourismType === 'waterfalls' || (interests.some(i => /waterfall/i.test(i)))) {
+  } else if (tourismType === 'waterfalls' || hasWaterfall) {
     filtered = SEED_DESTINATIONS.filter(d => ['hundru-falls', 'jonha-falls', 'patratu-valley'].includes(d.slug));
   } else if (tourismType === 'sacred_temples' || tourismType === 'spiritual') {
     filtered = SEED_DESTINATIONS.filter(d => ['parasnath-hills-shikharji', 'baba-baidyanath-dham'].includes(d.slug));

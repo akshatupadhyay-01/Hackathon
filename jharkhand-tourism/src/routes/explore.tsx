@@ -17,6 +17,7 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Section } from '../components/section';
 import { Skeleton } from '../components/ui/skeleton';
+import { SEO } from '../components/seo';
 
 interface ExplorePageProps {
   navigate: (path: string) => void;
@@ -105,6 +106,13 @@ export function ExplorePage({
 
   return (
     <div className="min-h-screen bg-stone-50/70 dark:bg-stone-950 text-stone-900 dark:text-stone-100 py-8 md:py-12">
+      <SEO
+        title="Explore All Destinations — Waterfalls, Hills, Sanctuaries & Temples"
+        description="Browse certified eco-tourism destinations across 8 districts of Jharkhand. Filter by district, waterfalls, spiritual sites, wildlife reserves, and crowd levels."
+        keywords="Jharkhand destinations, Ranchi waterfalls, Latehar hills, Betla safari, Parasnath Jain peak, Patratu valley, Baidyanath Jyotirlinga, Jharkhand eco tourism catalog"
+        canonicalPath="/explore"
+        ogType="website"
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Header & Title */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

@@ -1,21 +1,37 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { ItineraryRequest, ItineraryResponse, ItineraryDayPlan } from '../types/index';
 import { SEED_DESTINATIONS, SEED_GUIDES, SEED_VENDORS } from '../data/jharkhand';
+import { sanitizePromptInput, sanitizeStringList, redactSecrets, safeLogger, SECURITY_LIMITS } from '../lib/security';
 
 export async function generateItinerary(
   reqBody: Partial<ItineraryRequest>,
   supabaseClient?: any
 ): Promise<ItineraryResponse> {
-  // 1. Sanitize & validate inputs
-  const days = Math.max(1, Math.min(14, Math.floor(Number(reqBody.days) || 3)));
-  const budget = Math.max(1000, Number(reqBody.budget) || 12000);
-  const guests = Math.max(1, Math.min(50, Math.floor(Number(reqBody.guests) || 2)));
-  const startingLocation = reqBody.startingLocation?.trim() || 'Ranchi';
-  const interests = Array.isArray(reqBody.interests) && reqBody.interests.length > 0
+  // 1. Sanitize & validate inputs (SSDI, Prompt Injection & LPDOS bounds)
+  const days = Math.max(1, Math.min(SECURITY_LIMITS.MAX_ITINERARY_DAYS, Math.floor(Number(reqBody.days) || 3)));
+  const rawBudget = Number(reqBody.budget) || 12000;
+  const budget = Math.max(SECURITY_LIMITS.MIN_BUDGET_INR, Math.min(SECURITY_LIMITS.MAX_BUDGET_INR, rawBudget));
+  const guests = Math.max(1, Math.min(SECURITY_LIMITS.MAX_ITINERARY_GUESTS, Math.floor(Number(reqBody.guests) || 2)));
+  
+  // Sanitize strings & lists to defeat SSDI / Prompt Delimiter breakout
+  const startingLocation = sanitizePromptInput(reqBody.startingLocation || 'Ranchi', 50) || 'Ranchi';
+  
+  const rawInterests = Array.isArray(reqBody.interests) && reqBody.interests.length > 0
     ? reqBody.interests
     : ['Eco Tourism', 'Waterfalls', 'Tribal Heritage'];
-  const travelGroup = reqBody.travelGroup || (guests === 1 ? 'solo' : guests === 2 ? 'couple' : 'family');
-  const tourismType = reqBody.tourismType || 'all';
+  const interests = sanitizeStringList(rawInterests, 6, 30);
+
+  // Whitelist travel groups to prevent injection
+  const allowedGroups = ['solo', 'couple', 'family', 'friends', 'business'];
+  const rawGroup = typeof reqBody.travelGroup === 'string' ? reqBody.travelGroup.toLowerCase().trim() : '';
+  const travelGroup = allowedGroups.includes(rawGroup)
+    ? rawGroup
+    : (guests === 1 ? 'solo' : guests === 2 ? 'couple' : 'family');
+
+  // Whitelist tourism types
+  const allowedTypes = ['all', 'waterfalls', 'wildlife_eco', 'spiritual', 'adventure', 'culture_heritage'];
+  const rawType = typeof reqBody.tourismType === 'string' ? reqBody.tourismType.toLowerCase().trim() : '';
+  const tourismType = allowedTypes.includes(rawType) ? rawType : 'all';
 
   // 2. Fetch real destinations from database or fallback catalog
   let destinations = SEED_DESTINATIONS;
@@ -158,7 +174,7 @@ ${destinationListText.join('\n')}
             break;
           }
         } catch (candidateErr) {
-          console.warn(`Model ${candidateModel} call failed, trying next candidate:`, candidateErr);
+          safeLogger.warn(`Model ${candidateModel} call failed, trying next candidate:`, candidateErr);
         }
       }
 
@@ -258,7 +274,7 @@ ${destinationListText.join('\n')}
         }
       }
     } catch (geminiError) {
-      console.warn('Gemini API execution error, falling back to database rule-based planner:', geminiError);
+      safeLogger.warn('Gemini API execution error, falling back to database rule-based planner:', geminiError);
     }
   }
 

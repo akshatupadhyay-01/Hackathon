@@ -29,6 +29,7 @@ import {
 } from '../data/emergency-contacts';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { safeClipboardCopy } from '../lib/security';
 
 interface EmergencyHelpModalProps {
   isOpen: boolean;
@@ -78,7 +79,7 @@ export function EmergencyHelpModal({ isOpen, onClose, navigate }: EmergencyHelpM
   }, [isOpen]);
 
   const handleCopyNumber = (num: string) => {
-    navigator.clipboard.writeText(num.replace(/[^0-9+]/g, ''));
+    safeClipboardCopy(num.replace(/[^0-9+]/g, ''), { maxLength: 20 });
     setCopiedNumber(num);
     setTimeout(() => setCopiedNumber(null), 2500);
   };
@@ -86,7 +87,7 @@ export function EmergencyHelpModal({ isOpen, onClose, navigate }: EmergencyHelpM
   const handleCopyCoordinates = () => {
     if (!coords) return;
     const text = `My Emergency GPS Location: Lat ${coords.lat.toFixed(6)}, Lng ${coords.lng.toFixed(6)} (Accuracy: ~${Math.round(coords.accuracy)}m)`;
-    navigator.clipboard.writeText(text);
+    safeClipboardCopy(text, { maxLength: 200 });
     setCopiedCoords(true);
     setTimeout(() => setCopiedCoords(false), 3000);
   };
@@ -138,7 +139,10 @@ export function EmergencyHelpModal({ isOpen, onClose, navigate }: EmergencyHelpM
   if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 overflow-hidden pt-[max(0.6rem,env(safe-area-inset-top,0px))] pb-[max(0.6rem,env(safe-area-inset-bottom,0px))] pl-[max(0.6rem,env(safe-area-inset-left,0px))] pr-[max(0.6rem,env(safe-area-inset-right,0px))] animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 overflow-hidden h-[100dvh] max-h-[100dvh] min-h-[100dvh] pt-[max(0.6rem,env(safe-area-inset-top,0px))] pb-[max(0.6rem,env(safe-area-inset-bottom,0px))] pl-[max(0.6rem,env(safe-area-inset-left,0px))] pr-[max(0.6rem,env(safe-area-inset-right,0px))] animate-in fade-in duration-200"
+      style={{ height: '100dvh', maxHeight: '100dvh' }}
+    >
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-stone-950/75 backdrop-blur-sm transition-opacity"
@@ -146,12 +150,15 @@ export function EmergencyHelpModal({ isOpen, onClose, navigate }: EmergencyHelpM
         aria-hidden="true"
       />
 
-      {/* Modal Container — Strict viewport boundary + internal flexbox scrolling */}
+      {/* Modal Container — Strict 100dvh viewport boundary + internal flexbox scrolling */}
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="emergency-dialog-title"
-        className="relative w-full max-w-2xl max-h-[calc(100dvh-1.25rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] sm:max-h-[88dvh] flex flex-col rounded-2xl sm:rounded-3xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-2xl overflow-hidden transition-all my-auto"
+        className="relative w-full max-w-2xl max-h-[calc(100dvh-1.25rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] sm:max-h-[min(88dvh,calc(100dvh-2rem))] flex flex-col rounded-2xl sm:rounded-3xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-2xl overflow-hidden transition-all my-auto"
+        style={{
+          maxHeight: 'calc(100dvh - 1.25rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+        }}
       >
         {/* Header with High-Visibility Emergency Header */}
         <div className="relative bg-gradient-to-r from-rose-600 via-rose-700 to-red-800 text-white px-3.5 sm:px-6 py-3 sm:py-4 flex items-center justify-between shrink-0 shadow-md gap-2">
@@ -183,8 +190,11 @@ export function EmergencyHelpModal({ isOpen, onClose, navigate }: EmergencyHelpM
           </button>
         </div>
 
-        {/* Scrollable Content Body with min-h-0 to guarantee container constraints */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3.5 sm:p-6 space-y-4 sm:space-y-6 pb-6">
+        {/* Scrollable Content Body with min-h-0 and explicit overflow-y: auto to guarantee container constraints */}
+        <div 
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3.5 sm:p-6 space-y-4 sm:space-y-6 pb-6"
+          style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}
+        >
           {/* Quick Notice Banner */}
           <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />

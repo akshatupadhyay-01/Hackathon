@@ -5,6 +5,7 @@ import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
+import { SEO } from '../components/seo';
 
 interface SignUpPageProps {
   navigate: (path: string) => void;
@@ -93,6 +94,7 @@ export function SignUpPage({ navigate }: SignUpPageProps) {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 bg-gradient-to-b from-stone-50 via-white to-stone-50 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950">
+      <SEO title="Create Your Account" noIndex={true} canonicalPath="/signup" />
       <div className="max-w-md w-full space-y-6">
         {/* Header Branding */}
         <div className="text-center space-y-2">

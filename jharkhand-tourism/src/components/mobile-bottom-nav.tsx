@@ -2,6 +2,7 @@ import React from 'react';
 import { Compass, MapPin, Sparkles, ShoppingBag, QrCode, User, AlertCircle } from 'lucide-react';
 import { usePWA } from '../lib/pwa-context';
 import { useAuth } from '../lib/auth-context';
+import { useI18n } from '../lib/i18n-context';
 
 interface MobileBottomNavProps {
   currentPath: string;
@@ -12,6 +13,7 @@ interface MobileBottomNavProps {
 export function MobileBottomNav({ currentPath, navigate, onOpenSos }: MobileBottomNavProps) {
   const { triggerHaptic } = usePWA();
   const { user } = useAuth();
+  const { t } = useI18n();
 
   const handleTabClick = (path: string) => {
     triggerHaptic(12);
@@ -21,14 +23,14 @@ export function MobileBottomNav({ currentPath, navigate, onOpenSos }: MobileBott
   const navTabs = [
     {
       id: 'home',
-      label: 'Explore',
+      label: t('mobileNav.explore', 'Explore'),
       path: '/',
       icon: Compass,
       isActive: currentPath === '/' || currentPath === '/explore' || currentPath.startsWith('/destinations/'),
     },
     {
       id: 'map',
-      label: 'Eco Map',
+      label: t('mobileNav.ecoMap', 'Eco Map'),
       path: '/map',
       icon: MapPin,
       isActive: currentPath === '/map',
@@ -36,21 +38,21 @@ export function MobileBottomNav({ currentPath, navigate, onOpenSos }: MobileBott
     },
     {
       id: 'trips',
-      label: 'AI Planner',
+      label: t('mobileNav.aiPlanner', 'AI Planner'),
       path: '/trip-planner',
       icon: Sparkles,
       isActive: currentPath === '/trip-planner',
     },
     {
       id: 'local',
-      label: 'Artisans',
+      label: t('mobileNav.artisans', 'Artisans'),
       path: '/discover-local',
       icon: ShoppingBag,
       isActive: currentPath === '/discover-local',
     },
     {
       id: 'profile',
-      label: user ? 'Eco Passes' : 'Account',
+      label: user ? t('mobileNav.ecoPasses', 'Eco Passes') : t('mobileNav.account', 'Account'),
       path: user ? '/profile' : '/signin',
       icon: user ? QrCode : User,
       isActive:

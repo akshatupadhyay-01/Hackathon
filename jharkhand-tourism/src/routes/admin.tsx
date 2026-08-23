@@ -41,6 +41,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { CrowdIntelligenceMap } from '../components/crowd-intelligence-map';
 import { TouristVoiceHeatmap } from '../components/tourist-voice-heatmap';
+import { SEO } from '../components/seo';
 import { Destination, District, Category } from '../types/database';
 import {
   fetchDestinations,
@@ -343,6 +344,7 @@ export function AdminPage({ navigate }: AdminPageProps) {
 
   return (
     <div className="min-h-screen bg-stone-50/60 dark:bg-stone-950 py-6 md:py-10 text-stone-900 dark:text-stone-100">
+      <SEO title="Tourism Intelligence Dashboard — Admin" noIndex={true} canonicalPath="/admin" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-7">
         
         {/* ========================================================================= */}

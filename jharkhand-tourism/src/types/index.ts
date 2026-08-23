@@ -1,4 +1,5 @@
 export * from './database';
+export * from '../services/carbonFootprint';
 
 export interface TravelSegment {
   originName: string;

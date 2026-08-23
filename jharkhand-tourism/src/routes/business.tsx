@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
+import { SEO } from '../components/seo';
 
 interface BusinessPageProps {
   navigate: (path: string) => void;
@@ -26,6 +27,13 @@ export function BusinessPage({ navigate }: BusinessPageProps) {
 
   return (
     <div className="min-h-screen bg-stone-50/50 dark:bg-stone-950 py-8 md:py-12">
+      <SEO
+        title="Host & Partner Registration — Homestays, Artisans & Guides"
+        description="Register your tribal homestay, artisan craft workshop, or local guide services with the Jharkhand Eco-Tourism platform. Free onboarding and official district eco-certification."
+        keywords="Jharkhand homestay registration, Jharkhand tourist guide partner, artisan onboarding, tourism business Jharkhand"
+        canonicalPath="/business"
+        ogType="website"
+      />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="space-y-2 text-center">
           <div className="inline-flex items-center gap-2">

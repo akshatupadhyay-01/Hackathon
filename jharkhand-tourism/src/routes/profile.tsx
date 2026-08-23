@@ -19,18 +19,24 @@ import {
   Info,
   Clock,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  HardDrive,
+  Download,
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
+import { SEO } from '../components/seo';
 import { useAuth } from '../lib/auth-context';
 import { fetchUserBookings, fetchUserSavedItineraries, deleteUserSavedItinerary, getStoredBookings } from '../services/destinations';
 import { SEED_DESTINATIONS } from '../data/jharkhand';
 import { DigitalEcoPass } from '../components/digital-eco-pass';
 import { Booking, Destination, SavedItinerary } from '../types/database';
+import { getStorageStats, StorageStats } from '../services/offlineMapStorage';
+import { OfflineMapModal } from '../components/offline-map-modal';
+import { calculateItineraryCarbonFootprint } from '../services/carbonFootprint';
 
 interface ProfilePageProps {
   navigate: (path: string) => void;
@@ -75,6 +81,21 @@ export function ProfilePage({ navigate, initialTab }: ProfilePageProps) {
     totalAmountInr: number;
     status: string;
   } | null>(null);
+
+  // Offline GIS Map Storage State
+  const [offlineModalOpen, setOfflineModalOpen] = useState<boolean>(false);
+  const [offlineStats, setOfflineStats] = useState<StorageStats>({
+    regionCount: 0,
+    totalTiles: 0,
+    totalSizeBytes: 0,
+    formattedSize: '0.0 MB',
+  });
+
+  useEffect(() => {
+    getStorageStats()
+      .then((stats) => setOfflineStats(stats))
+      .catch(() => {});
+  }, [offlineModalOpen]);
 
   // Sync edit profile form with loaded profile
   useEffect(() => {
@@ -267,6 +288,7 @@ export function ProfilePage({ navigate, initialTab }: ProfilePageProps) {
 
   return (
     <div className="min-h-screen bg-stone-50/50 dark:bg-stone-950 py-8 md:py-12">
+      <SEO title="My Profile & Eco-Passes" noIndex={true} canonicalPath="/profile" />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Sign Out Notice Toast */}
         {signOutNotice && (
@@ -591,20 +613,43 @@ export function ProfilePage({ navigate, initialTab }: ProfilePageProps) {
 
                       {/* Itinerary Preview Days */}
                       {trip.itinerary_data?.days && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                          {trip.itinerary_data.days.slice(0, 3).map((d: any) => (
-                            <div
-                              key={d.dayNumber}
-                              className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/60 border border-stone-100 dark:border-stone-700/60"
-                            >
-                              <span className="font-bold text-emerald-800 dark:text-emerald-300 block">
-                                Day {d.dayNumber}: {d.destinationName}
-                              </span>
-                              <span className="text-stone-500 text-[11px] line-clamp-1">
-                                {d.activities?.[0] || 'Explore eco sanctuary and nature trails'}
-                              </span>
-                            </div>
-                          ))}
+                        <div className="space-y-2.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                            {trip.itinerary_data.days.slice(0, 3).map((d: any) => (
+                              <div
+                                key={d.dayNumber}
+                                className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/60 border border-stone-100 dark:border-stone-700/60"
+                              >
+                                <span className="font-bold text-emerald-800 dark:text-emerald-300 block">
+                                  Day {d.dayNumber}: {d.destinationName}
+                                </span>
+                                <span className="text-stone-500 text-[11px] line-clamp-1">
+                                  {d.activities?.[0] || 'Explore eco sanctuary and nature trails'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Carbon Footprint & Offset summary */}
+                          {(() => {
+                            const fp = calculateItineraryCarbonFootprint(trip.itinerary_data, 'diesel_suv', {}, 2);
+                            return (
+                              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 text-[11px]">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-emerald-900 dark:text-emerald-200">
+                                    🌿 Circuit Distance: {fp.totalDistanceKm} km
+                                  </span>
+                                  <span className="text-stone-400">•</span>
+                                  <span className="text-stone-600 dark:text-stone-400">
+                                    Est. Carbon: ~{fp.totalCarbonKg} kg CO₂
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 font-bold text-emerald-700 dark:text-emerald-400">
+                                  <span>🌲 Offset: ~{fp.treesEquivalent > 0 ? fp.treesEquivalent : (trip.duration_days * 1.5).toFixed(1)} Sal Trees</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </Card>
@@ -795,11 +840,48 @@ export function ProfilePage({ navigate, initialTab }: ProfilePageProps) {
                     Manage App
                   </Button>
                 </div>
+
+                {/* Offline GIS Map Tiles (IndexedDB) */}
+                <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-emerald-900 dark:text-emerald-200">
+                        Offline GIS Maps & Tile Storage
+                      </span>
+                      <Badge variant="outline" className="text-[10px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border-emerald-300">
+                        IndexedDB
+                      </Badge>
+                    </div>
+                    <span className="text-[11px] text-stone-600 dark:text-stone-400 block">
+                      {offlineStats.regionCount} region{offlineStats.regionCount === 1 ? '' : 's'} cached ({offlineStats.formattedSize} • {offlineStats.totalTiles} raster tiles)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => setOfflineModalOpen(true)}
+                      className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-xs"
+                    >
+                      <HardDrive className="h-3.5 w-3.5" />
+                      <span>Manage Offline Maps</span>
+                    </Button>
+                  </div>
+                </div>
               </div>
             </Card>
           )}
         </div>
       </div>
+
+      {/* Offline Map Manager Modal */}
+      <OfflineMapModal
+        isOpen={offlineModalOpen}
+        onClose={() => setOfflineModalOpen(false)}
+        onNavigateToRegion={() => {
+          setOfflineModalOpen(false);
+          navigate('/map');
+        }}
+      />
 
       {/* View Digital Pass Modal */}
       <Dialog

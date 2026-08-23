@@ -37,6 +37,8 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import { CarbonFootprintCard } from '../components/carbon-footprint-card';
+import { SEO } from '../components/seo';
 
 interface TripPlannerPageProps {
   navigate: (path: string) => void;
@@ -376,6 +378,13 @@ export function TripPlannerPage({ navigate }: TripPlannerPageProps) {
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 py-8 md:py-12">
+      <SEO
+        title="Jharkhand Green Circuit Trip Planner — Sustainable Itineraries"
+        description="Plan your eco-friendly travel circuit across Jharkhand with real road travel times, certified tribal homestay stops, and native guide bookings."
+        keywords="Jharkhand trip planner, Jharkhand itinerary generator, eco travel circuit Jharkhand, Betla Netarhat road trip, Ranchi waterfall circuit, sustainable tour Jharkhand"
+        canonicalPath="/trip-planner"
+        ogType="website"
+      />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Header Title Banner */}
         <div className="space-y-3">
@@ -441,6 +450,25 @@ export function TripPlannerPage({ navigate }: TripPlannerPageProps) {
                   }}
                   className="w-full accent-emerald-700 cursor-pointer"
                 />
+              </div>
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {[1, 2, 3, 5, 7, 10].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      setDuration(d);
+                      setDurationInput(d.toString());
+                    }}
+                    className={`text-[10px] px-2 py-1 rounded-lg font-semibold transition-all active:scale-95 cursor-pointer ${
+                      duration === d
+                        ? 'bg-emerald-700 text-white shadow-xs'
+                        : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200'
+                    }`}
+                  >
+                    {d} {d === 1 ? 'Day' : 'Days'}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -812,36 +840,12 @@ export function TripPlannerPage({ navigate }: TripPlannerPageProps) {
               )}
             </div>
 
-            {/* Impact Metric Banner */}
-            <div className="p-4 rounded-2xl bg-emerald-950 text-emerald-100 border border-emerald-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-800 flex items-center justify-center shrink-0 text-emerald-200 font-bold">
-                  🌿
-                </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">
-                    Estimated Eco-Carbon Offset: ~{itinerary.days.length * 22} kg CO₂
-                  </h4>
-                  <p className="text-xs text-emerald-300">
-                    Calculated for road-circuit travel, certified tribal homestays, and local guides.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="emerald" className="bg-emerald-800 text-emerald-100 text-xs shrink-0">
-                  Zero Plastic Corridor
-                </Badge>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleOpenMapWithItinerary()}
-                  className="text-xs text-emerald-200 border-emerald-700 hover:bg-emerald-900 gap-1 h-7"
-                >
-                  <Compass className="h-3 w-3" />
-                  <span>View on Map</span>
-                </Button>
-              </div>
-            </div>
+            {/* Carbon Footprint & Sustainable Transit Optimizer */}
+            <CarbonFootprintCard
+              itinerary={itinerary}
+              guestCount={Math.max(1, Math.min(50, parseInt(guestCountInput.trim(), 10) || 2))}
+              onOpenMap={() => handleOpenMapWithItinerary()}
+            />
 
             {/* Day by Day Cards with Real Travel Times & Realistic Day Schedules */}
             <div className="space-y-4">

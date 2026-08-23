@@ -8,6 +8,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
+import { SEO } from '../components/seo';
 
 interface DiscoverLocalPageProps {
   navigate: (path: string) => void;
@@ -55,6 +56,13 @@ export function DiscoverLocalPage({ navigate }: DiscoverLocalPageProps) {
 
   return (
     <div className="min-h-screen bg-stone-50/50 dark:bg-stone-950 py-8 md:py-12">
+      <SEO
+        title="Discover Local Artisans, Certified Guides & Tribal Homestays"
+        description="Support indigenous tribal communities in Jharkhand. Hire certified local guides speaking Santhali, Ho, and Hindi. Shop handmade Dokra metal craft, Sohrai paintings, and book authentic rural eco-homestays."
+        keywords="Jharkhand tribal artisans, Dokra metal art, Sohrai painting, Jharkhand certified tourist guides, Santhal homestay, rural tourism Jharkhand, indigenous crafts"
+        canonicalPath="/discover-local"
+        ogType="website"
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
