@@ -28,6 +28,8 @@ import {
   Store,
   Sparkles,
   ExternalLink,
+  HardDrive,
+  Download,
 } from 'lucide-react';
 import { Destination, District } from '../types/database';
 import { ItineraryResponse } from '../types/index';
@@ -47,6 +49,9 @@ import {
   VENDOR_CATEGORIES,
   fetchNearbyVendors,
 } from '../services/localVendors';
+import { createOfflineTileLayer } from '../lib/leaflet-offline-layer';
+import { MapBounds, getStorageStats } from '../services/offlineMapStorage';
+import { OfflineMapModal } from './offline-map-modal';
 
 export type StandardCrowdLevel = 'HIGH' | 'MEDIUM' | 'LOW';
 
@@ -196,6 +201,35 @@ export function InteractiveMap({
   const hubNames = useMemo(() => {
     return Object.values(JHARKHAND_HUBS).map((h) => h.name);
   }, []);
+
+  // Offline GIS Map Download & Storage State
+  const [showOfflineModal, setShowOfflineModal] = useState<boolean>(false);
+  const [currentMapBounds, setCurrentMapBounds] = useState<MapBounds | null>(null);
+  const [currentMapCenter, setCurrentMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [offlineRegionCount, setOfflineRegionCount] = useState<number>(0);
+
+  // Refresh saved offline region count
+  useEffect(() => {
+    getStorageStats()
+      .then((stats) => {
+        setOfflineRegionCount(stats.regionCount);
+      })
+      .catch(() => {});
+  }, [showOfflineModal]);
+
+  // Navigate to downloaded offline region
+  const handleNavigateToOfflineRegion = (bounds: MapBounds, name: string) => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    try {
+      const corner1 = L.latLng(bounds.south, bounds.west);
+      const corner2 = L.latLng(bounds.north, bounds.east);
+      const latLngBounds = L.latLngBounds(corner1, corner2);
+      map.fitBounds(latLngBounds, { padding: [35, 35], maxZoom: 13, animate: true });
+    } catch (e) {
+      console.error('Failed to fit bounds:', e);
+    }
+  };
 
   // Validate coordinates helper
   const isValidCoord = (lat?: number, lng?: number): boolean => {
@@ -386,11 +420,58 @@ export function InteractiveMap({
     };
   }, [directionsMode, directionsOrigin, directionsDestination]);
 
+  // Helper to safely verify if Leaflet map instance and container are active in DOM
+  const isMapAlive = (map: L.Map | null): map is L.Map => {
+    if (!map) return false;
+    try {
+      const container = map.getContainer();
+      return !!(container && document.body.contains(container) && (map as any)._leaflet_id);
+    } catch {
+      return false;
+    }
+  };
+
+  const safeFlyTo = (
+    map: L.Map | null,
+    latLng: L.LatLngExpression,
+    zoom: number,
+    options?: L.ZoomPanOptions
+  ) => {
+    if (!isMapAlive(map)) return;
+    try {
+      map.flyTo(latLng, zoom, options);
+    } catch {
+      try {
+        map.setView(latLng, zoom);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const safeFitBounds = (
+    map: L.Map | null,
+    bounds: L.LatLngBoundsExpression,
+    options?: L.FitBoundsOptions
+  ) => {
+    if (!isMapAlive(map)) return;
+    try {
+      map.fitBounds(bounds, options);
+    } catch {
+      // ignore
+    }
+  };
+
   // Initialize Leaflet Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
+      // Reset _leaflet_id on container if previous instance left it (e.g. StrictMode remounts)
+      if ((mapContainerRef.current as any)._leaflet_id) {
+        delete (mapContainerRef.current as any)._leaflet_id;
+      }
+
       const map = L.map(mapContainerRef.current, {
         center: [23.6102, 85.2799], // Center of Jharkhand
         zoom: 8,
@@ -399,13 +480,40 @@ export function InteractiveMap({
         zoomControl: false,
       });
 
-      // Carto basemap
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution:
-          '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        subdomains: 'abcd',
-        maxZoom: 19,
-      }).addTo(map);
+      // IndexedDB-backed Offline Tile Layer
+      const offlineTileLayer = createOfflineTileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        {
+          layerName: 'carto',
+          attribution:
+            '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          subdomains: 'abcd',
+          maxZoom: 19,
+        }
+      );
+      offlineTileLayer.addTo(map);
+
+      // Track bounds & center for offline region downloads
+      const updateMapBoundsAndCenter = () => {
+        try {
+          if (!isMapAlive(map)) return;
+          const b = map.getBounds();
+          const c = map.getCenter();
+          setCurrentMapBounds({
+            south: b.getSouth(),
+            west: b.getWest(),
+            north: b.getNorth(),
+            east: b.getEast(),
+          });
+          setCurrentMapCenter({ lat: c.lat, lng: c.lng });
+        } catch {
+          // ignore
+        }
+      };
+
+      map.on('moveend', updateMapBoundsAndCenter);
+      map.on('zoomend', updateMapBoundsAndCenter);
+      updateMapBoundsAndCenter();
 
       // Layer groups ordered for proper visual stacking
       zonesLayerRef.current = L.layerGroup().addTo(map);
@@ -420,7 +528,20 @@ export function InteractiveMap({
 
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        try {
+          if (zonesLayerRef.current) zonesLayerRef.current.clearLayers();
+          if (routePolylinesGroupRef.current) routePolylinesGroupRef.current.clearLayers();
+          if (markersLayerRef.current) markersLayerRef.current.clearLayers();
+          if (vendorsLayerRef.current) vendorsLayerRef.current.clearLayers();
+          if (userGpsLayerRef.current) userGpsLayerRef.current.clearLayers();
+          if (polylineLayerRef.current) {
+            polylineLayerRef.current.remove();
+            polylineLayerRef.current = null;
+          }
+          mapInstanceRef.current.remove();
+        } catch {
+          // ignore cleanup errors
+        }
         mapInstanceRef.current = null;
         setMapReady(false);
       }
@@ -431,72 +552,78 @@ export function InteractiveMap({
   useEffect(() => {
     const map = mapInstanceRef.current;
     const userGpsGroup = userGpsLayerRef.current;
-    if (!map || !userGpsGroup || !mapReady) return;
+    if (!isMapAlive(map) || !userGpsGroup || !mapReady) return;
 
-    userGpsGroup.clearLayers();
+    try {
+      userGpsGroup.clearLayers();
 
-    if (userGpsCoords && isValidCoord(userGpsCoords.lat, userGpsCoords.lng)) {
-      const userPos: [number, number] = [userGpsCoords.lat, userGpsCoords.lng];
+      if (userGpsCoords && isValidCoord(userGpsCoords.lat, userGpsCoords.lng)) {
+        const userPos: [number, number] = [userGpsCoords.lat, userGpsCoords.lng];
 
-      // Outer accuracy ring
-      const accuracyMeters = userGpsCoords.accuracy || 120;
-      const accuracyCircle = L.circle(userPos, {
-        radius: Math.min(accuracyMeters, 500),
-        color: '#2563eb',
-        fillColor: '#3b82f6',
-        fillOpacity: 0.14,
-        weight: 1.5,
-        interactive: false,
-      });
-      userGpsGroup.addLayer(accuracyCircle);
+        // Outer accuracy ring
+        const accuracyMeters = userGpsCoords.accuracy || 120;
+        const accuracyCircle = L.circle(userPos, {
+          radius: Math.min(accuracyMeters, 500),
+          color: '#2563eb',
+          fillColor: '#3b82f6',
+          fillOpacity: 0.14,
+          weight: 1.5,
+          interactive: false,
+        });
+        userGpsGroup.addLayer(accuracyCircle);
 
-      // Pulsing GPS Pin with coordinates
-      const gpsMarkerHtml = `
-        <div class="user-gps-pin" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; cursor: pointer;">
-          <div style="
-            background: #1d4ed8;
-            color: #ffffff;
-            border: 2.5px solid #ffffff;
-            box-shadow: 0 4px 16px rgba(29,78,216,0.6);
-            border-radius: 9999px;
-            padding: 4px 9px;
-            font-size: 11px;
-            font-weight: 800;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            white-space: nowrap;
-            z-index: 20;
-          ">
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#60a5fa;box-shadow:0 0 6px #60a5fa;"></span>
-            <span>📍 You are here</span>
+        // Pulsing GPS Pin with coordinates
+        const gpsMarkerHtml = `
+          <div class="user-gps-pin" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; cursor: pointer;">
+            <div style="
+              background: #1d4ed8;
+              color: #ffffff;
+              border: 2.5px solid #ffffff;
+              box-shadow: 0 4px 16px rgba(29,78,216,0.6);
+              border-radius: 9999px;
+              padding: 4px 9px;
+              font-size: 11px;
+              font-weight: 800;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+              white-space: nowrap;
+              z-index: 20;
+            ">
+              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#60a5fa;box-shadow:0 0 6px #60a5fa;"></span>
+              <span>📍 You are here</span>
+            </div>
+            <div style="
+              position: absolute;
+              width: 32px;
+              height: 32px;
+              border-radius: 50%;
+              background: rgba(37, 99, 235, 0.4);
+              border: 2px solid rgba(147, 197, 253, 0.9);
+              animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+              z-index: 10;
+              pointer-events: none;
+            "></div>
           </div>
-          <div style="
-            position: absolute;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: rgba(37, 99, 235, 0.4);
-            border: 2px solid rgba(147, 197, 253, 0.9);
-            animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-            z-index: 10;
-            pointer-events: none;
-          "></div>
-        </div>
-      `;
+        `;
 
-      const gpsIcon = L.divIcon({
-        className: 'custom-gps-icon',
-        html: gpsMarkerHtml,
-        iconSize: [110, 32],
-        iconAnchor: [55, 16],
-      });
+        const gpsIcon = L.divIcon({
+          className: 'custom-gps-icon',
+          html: gpsMarkerHtml,
+          iconSize: [110, 32],
+          iconAnchor: [55, 16],
+        });
 
-      const marker = L.marker(userPos, { icon: gpsIcon, zIndexOffset: 1000 });
-      marker.on('click', () => {
-        map.flyTo(userPos, 14, { duration: 0.8 });
-      });
-      userGpsGroup.addLayer(marker);
+        const marker = L.marker(userPos, { icon: gpsIcon, zIndexOffset: 1000 });
+        marker.on('click', () => {
+          if (isMapAlive(mapInstanceRef.current)) {
+            safeFlyTo(mapInstanceRef.current, userPos, 14, { duration: 0.8 });
+          }
+        });
+        userGpsGroup.addLayer(marker);
+      }
+    } catch (e) {
+      console.error('Failed to update GPS marker on map:', e);
     }
   }, [userGpsCoords, mapReady]);
 
@@ -504,75 +631,81 @@ export function InteractiveMap({
   useEffect(() => {
     const map = mapInstanceRef.current;
     const vendorsGroup = vendorsLayerRef.current;
-    if (!map || !vendorsGroup || !mapReady) return;
+    if (!isMapAlive(map) || !vendorsGroup || !mapReady) return;
 
-    vendorsGroup.clearLayers();
+    try {
+      vendorsGroup.clearLayers();
 
-    if (!showVendorsLayer || vendors.length === 0) return;
+      if (!showVendorsLayer || vendors.length === 0) return;
 
-    vendors.forEach((vendor) => {
-      if (!isValidCoord(vendor.latitude, vendor.longitude)) return;
-      const isSelected = selectedVendor?.id === vendor.id;
-      const vendorPos: [number, number] = [vendor.latitude, vendor.longitude];
+      vendors.forEach((vendor) => {
+        if (!isValidCoord(vendor.latitude, vendor.longitude)) return;
+        const isSelected = selectedVendor?.id === vendor.id;
+        const vendorPos: [number, number] = [vendor.latitude, vendor.longitude];
 
-      const vendorHtml = `
-        <div class="leaflet-marker-custom ${isSelected ? 'vendor-selected' : ''}" style="
-          display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer;
-        ">
-          <div style="
-            background: ${isSelected ? '#ea580c' : '#c2410c'};
-            color: #ffffff;
-            border: 2px solid ${isSelected ? '#fdba74' : '#fb923c'};
-            box-shadow: 0 4px 12px rgba(194,65,12,0.4);
-            border-radius: 9999px;
-            padding: 3px 8px;
-            font-size: 10.5px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            transform: ${isSelected ? 'scale(1.15)' : 'scale(1)'};
-            transition: all 0.2s ease;
-            white-space: nowrap;
-            z-index: ${isSelected ? 25 : 15};
+        const vendorHtml = `
+          <div class="leaflet-marker-custom ${isSelected ? 'vendor-selected' : ''}" style="
+            display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer;
           ">
-            <span>${vendor.categoryIcon}</span>
-            <span style="max-width: 100px; overflow: hidden; text-overflow: ellipsis;">${vendor.name.split(' ')[0]}</span>
-            ${vendor.distanceKm !== undefined ? `<span style="font-size: 9px; opacity: 0.9; background: rgba(0,0,0,0.25); padding: 0 4px; border-radius: 3px;">${vendor.distanceKm}km</span>` : ''}
+            <div style="
+              background: ${isSelected ? '#ea580c' : '#c2410c'};
+              color: #ffffff;
+              border: 2px solid ${isSelected ? '#fdba74' : '#fb923c'};
+              box-shadow: 0 4px 12px rgba(194,65,12,0.4);
+              border-radius: 9999px;
+              padding: 3px 8px;
+              font-size: 10.5px;
+              font-weight: 700;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+              transform: ${isSelected ? 'scale(1.15)' : 'scale(1)'};
+              transition: all 0.2s ease;
+              white-space: nowrap;
+              z-index: ${isSelected ? 25 : 15};
+            ">
+              <span>${vendor.categoryIcon}</span>
+              <span style="max-width: 100px; overflow: hidden; text-overflow: ellipsis;">${vendor.name.split(' ')[0]}</span>
+              ${vendor.distanceKm !== undefined ? `<span style="font-size: 9px; opacity: 0.9; background: rgba(0,0,0,0.25); padding: 0 4px; border-radius: 3px;">${vendor.distanceKm}km</span>` : ''}
+            </div>
+            ${
+              isSelected
+                ? `<div style="
+                    position: absolute;
+                    bottom: -5px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 0;
+                    height: 0;
+                    border-left: 4px solid transparent;
+                    border-right: 4px solid transparent;
+                    border-top: 5px solid #ea580c;
+                  "></div>`
+                : ''
+            }
           </div>
-          ${
-            isSelected
-              ? `<div style="
-                  position: absolute;
-                  bottom: -5px;
-                  left: 50%;
-                  transform: translateX(-50%);
-                  width: 0;
-                  height: 0;
-                  border-left: 4px solid transparent;
-                  border-right: 4px solid transparent;
-                  border-top: 5px solid #ea580c;
-                "></div>`
-              : ''
+        `;
+
+        const customIcon = L.divIcon({
+          className: 'custom-vendor-icon',
+          html: vendorHtml,
+          iconSize: [120, 28],
+          iconAnchor: [60, 14],
+        });
+
+        const marker = L.marker(vendorPos, { icon: customIcon });
+        marker.on('click', () => {
+          setSelectedVendor(vendor);
+          setDrawerState('expanded');
+          if (isMapAlive(mapInstanceRef.current)) {
+            safeFlyTo(mapInstanceRef.current, vendorPos, Math.max(mapInstanceRef.current.getZoom(), 13), { duration: 0.8 });
           }
-        </div>
-      `;
-
-      const customIcon = L.divIcon({
-        className: 'custom-vendor-icon',
-        html: vendorHtml,
-        iconSize: [120, 28],
-        iconAnchor: [60, 14],
+        });
+        vendorsGroup.addLayer(marker);
       });
-
-      const marker = L.marker(vendorPos, { icon: customIcon });
-      marker.on('click', () => {
-        setSelectedVendor(vendor);
-        setDrawerState('expanded');
-        map.flyTo(vendorPos, Math.max(map.getZoom(), 13), { duration: 0.8 });
-      });
-      vendorsGroup.addLayer(marker);
-    });
+    } catch (e) {
+      console.error('Failed to update vendor markers:', e);
+    }
   }, [vendors, selectedVendor, showVendorsLayer, mapReady]);
 
   // Update Crowd Zones, Destination Markers, and Routes
@@ -581,118 +714,87 @@ export function InteractiveMap({
     const zonesGroup = zonesLayerRef.current;
     const markersGroup = markersLayerRef.current;
     const routeGroup = routePolylinesGroupRef.current;
-    if (!map || !zonesGroup || !markersGroup || !routeGroup || !mapReady) return;
+    if (!isMapAlive(map) || !zonesGroup || !markersGroup || !routeGroup || !mapReady) return;
 
-    zonesGroup.clearLayers();
-    markersGroup.clearLayers();
-    routeGroup.clearLayers();
+    try {
+      zonesGroup.clearLayers();
+      markersGroup.clearLayers();
+      routeGroup.clearLayers();
 
-    if (polylineLayerRef.current) {
-      map.removeLayer(polylineLayerRef.current);
-      polylineLayerRef.current = null;
-    }
-
-    const bounds: L.LatLngExpression[] = [];
-
-    // 1. RENDER CROWD DENSITY ZONES
-    if (showCrowdZones && !directionsMode) {
-      filteredDestinations.forEach((dest) => {
-        if (!isValidCoord(dest.latitude, dest.longitude)) return;
-        const crowd = getCrowdInfo(dest.crowd_status);
-        const center: [number, number] = [dest.latitude, dest.longitude];
-
-        const outerCircle = L.circle(center, {
-          radius: crowd.radiusMeters,
-          color: crowd.zoneColor,
-          weight: crowd.level === 'HIGH' ? 2 : crowd.level === 'MEDIUM' ? 1.5 : 1,
-          opacity: crowd.strokeOpacity,
-          fillColor: crowd.zoneColor,
-          fillOpacity: crowd.fillOpacity,
-          interactive: true,
-          className: `crowd-zone crowd-zone-${crowd.level.toLowerCase()}`,
-        });
-
-        outerCircle.on('click', () => {
-          setActiveDestination(dest);
-          setSelectedVendor(null);
-          setDrawerState('collapsed');
-          map.flyTo(center, Math.max(map.getZoom(), 11), { duration: 0.8 });
-        });
-
-        zonesGroup.addLayer(outerCircle);
-
-        if (crowd.level === 'HIGH') {
-          const innerCircle = L.circle(center, {
-            radius: crowd.radiusMeters * 0.45,
-            color: '#059669',
-            weight: 1.5,
-            opacity: 0.8,
-            fillColor: '#10b981',
-            fillOpacity: 0.4,
-            interactive: false,
-          });
-          zonesGroup.addLayer(innerCircle);
+      if (polylineLayerRef.current) {
+        try {
+          polylineLayerRef.current.remove();
+        } catch {
+          // ignore
         }
-      });
-    }
+        polylineLayerRef.current = null;
+      }
 
-    // 2. RENDER MARKERS & ROUTES BASED ON MODE
+      const bounds: L.LatLngExpression[] = [];
 
-    // --- MODE A: DIRECTIONS MODE ---
-    if (directionsMode && directionsDestination) {
-      const isDestValid = isValidCoord(directionsDestination.latitude, directionsDestination.longitude);
+      // 1. RENDER CROWD DENSITY ZONES
+      if (showCrowdZones && !directionsMode) {
+        filteredDestinations.forEach((dest) => {
+          if (!isValidCoord(dest.latitude, dest.longitude)) return;
+          const crowd = getCrowdInfo(dest.crowd_status);
+          const center: [number, number] = [dest.latitude, dest.longitude];
 
-      if (isDestValid) {
-        const destLatLng: [number, number] = [directionsDestination.latitude, directionsDestination.longitude];
-        bounds.push(destLatLng);
+          const outerCircle = L.circle(center, {
+            radius: crowd.radiusMeters,
+            color: crowd.zoneColor,
+            weight: crowd.level === 'HIGH' ? 2 : crowd.level === 'MEDIUM' ? 1.5 : 1,
+            opacity: crowd.strokeOpacity,
+            fillColor: crowd.zoneColor,
+            fillOpacity: crowd.fillOpacity,
+            interactive: true,
+            className: `crowd-zone crowd-zone-${crowd.level.toLowerCase()}`,
+          });
 
-        // Destination Marker
-        const crowd = getCrowdInfo(directionsDestination.crowd_status);
-        const destHtml = `
-          <div class="leaflet-marker-custom" style="display: flex; align-items: center; justify-content: center; position: relative;">
-            <div style="
-              background: #059669;
-              color: #ffffff;
-              border: 2px solid #34d399;
-              box-shadow: 0 4px 14px rgba(5,150,105,0.5);
-              border-radius: 9999px;
-              padding: 4px 10px;
-              font-size: 11px;
-              font-weight: 700;
-              display: flex;
-              align-items: center;
-              gap: 5px;
-              white-space: nowrap;
-              z-index: 10;
-            ">
-              <span>🎯 ${directionsDestination.name}</span>
-              <span style="font-size: 10px; background: rgba(0,0,0,0.25); padding: 1px 5px; border-radius: 4px;">
-                ${crowd.level === 'HIGH' ? '🟢' : '🟡'} ${crowd.level}
-              </span>
-            </div>
-          </div>
-        `;
-        const destIcon = L.divIcon({
-          className: 'custom-dest-icon',
-          html: destHtml,
-          iconSize: [160, 32],
-          iconAnchor: [80, 16],
+          outerCircle.on('click', () => {
+            setActiveDestination(dest);
+            setSelectedVendor(null);
+            setDrawerState('collapsed');
+            if (isMapAlive(mapInstanceRef.current)) {
+              safeFlyTo(mapInstanceRef.current, center, Math.max(mapInstanceRef.current.getZoom(), 11), { duration: 0.8 });
+            }
+          });
+
+          zonesGroup.addLayer(outerCircle);
+
+          if (crowd.level === 'HIGH') {
+            const innerCircle = L.circle(center, {
+              radius: crowd.radiusMeters * 0.45,
+              color: '#059669',
+              weight: 1.5,
+              opacity: 0.8,
+              fillColor: '#10b981',
+              fillOpacity: 0.4,
+              interactive: false,
+            });
+            zonesGroup.addLayer(innerCircle);
+          }
         });
-        L.marker(destLatLng, { icon: destIcon }).addTo(markersGroup);
+      }
 
-        // If Origin coordinates are set
-        if (directionsOrigin && isValidCoord(directionsOrigin.lat, directionsOrigin.lng)) {
-          const originLatLng: [number, number] = [directionsOrigin.lat, directionsOrigin.lng];
-          bounds.push(originLatLng);
+      // 2. RENDER MARKERS & ROUTES BASED ON MODE
 
-          const isGpsOrigin = directionsOrigin.isGps || directionsOrigin.name === 'Your Location';
-          const originHtml = `
-            <div class="leaflet-marker-custom" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+      // --- MODE A: DIRECTIONS MODE ---
+      if (directionsMode && directionsDestination) {
+        const isDestValid = isValidCoord(directionsDestination.latitude, directionsDestination.longitude);
+
+        if (isDestValid) {
+          const destLatLng: [number, number] = [directionsDestination.latitude, directionsDestination.longitude];
+          bounds.push(destLatLng);
+
+          // Destination Marker
+          const crowd = getCrowdInfo(directionsDestination.crowd_status);
+          const destHtml = `
+            <div class="leaflet-marker-custom" style="display: flex; align-items: center; justify-content: center; position: relative;">
               <div style="
-                background: #2563eb;
+                background: #059669;
                 color: #ffffff;
-                border: 2px solid #93c5fd;
-                box-shadow: 0 4px 14px rgba(37,99,235,0.6);
+                border: 2px solid #34d399;
+                box-shadow: 0 4px 14px rgba(5,150,105,0.5);
                 border-radius: 9999px;
                 padding: 4px 10px;
                 font-size: 11px;
@@ -701,233 +803,277 @@ export function InteractiveMap({
                 align-items: center;
                 gap: 5px;
                 white-space: nowrap;
-                position: relative;
                 z-index: 10;
               ">
-                <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ffffff;box-shadow:0 0 8px #ffffff;"></span>
-                <span>${isGpsOrigin ? '📍 You are here' : `📍 ${directionsOrigin.name}`}</span>
+                <span>🎯 ${directionsDestination.name}</span>
+                <span style="font-size: 10px; background: rgba(0,0,0,0.25); padding: 1px 5px; border-radius: 4px;">
+                  ${crowd.level === 'HIGH' ? '🟢' : '🟡'} ${crowd.level}
+                </span>
+              </div>
+            </div>
+          `;
+          const destIcon = L.divIcon({
+            className: 'custom-dest-icon',
+            html: destHtml,
+            iconSize: [160, 32],
+            iconAnchor: [80, 16],
+          });
+          L.marker(destLatLng, { icon: destIcon }).addTo(markersGroup);
+
+          // If Origin coordinates are set
+          if (directionsOrigin && isValidCoord(directionsOrigin.lat, directionsOrigin.lng)) {
+            const originLatLng: [number, number] = [directionsOrigin.lat, directionsOrigin.lng];
+            bounds.push(originLatLng);
+
+            const isGpsOrigin = directionsOrigin.isGps || directionsOrigin.name === 'Your Location';
+            const originHtml = `
+              <div class="leaflet-marker-custom" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+                <div style="
+                  background: #2563eb;
+                  color: #ffffff;
+                  border: 2px solid #93c5fd;
+                  box-shadow: 0 4px 14px rgba(37,99,235,0.6);
+                  border-radius: 9999px;
+                  padding: 4px 10px;
+                  font-size: 11px;
+                  font-weight: 700;
+                  display: flex;
+                  align-items: center;
+                  gap: 5px;
+                  white-space: nowrap;
+                  position: relative;
+                  z-index: 10;
+                ">
+                  <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ffffff;box-shadow:0 0 8px #ffffff;"></span>
+                  <span>${isGpsOrigin ? '📍 You are here' : `📍 ${directionsOrigin.name}`}</span>
+                </div>
+                ${
+                  isGpsOrigin
+                    ? `<div style="
+                        position: absolute;
+                        width: 34px;
+                        height: 34px;
+                        border-radius: 50%;
+                        background: rgba(37, 99, 235, 0.4);
+                        border: 1.5px solid rgba(147, 197, 253, 0.8);
+                        animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+                        z-index: 5;
+                        pointer-events: none;
+                      "></div>`
+                    : ''
+                }
+              </div>
+            `;
+            const originIcon = L.divIcon({
+              className: 'custom-origin-icon',
+              html: originHtml,
+              iconSize: [140, 32],
+              iconAnchor: [70, 16],
+            });
+            L.marker(originLatLng, { icon: originIcon }).addTo(markersGroup);
+
+            // Draw real road route polyline only when calculated
+            if (activeRouteResult && activeRouteResult.geometry.length > 0) {
+              activeRouteResult.geometry.forEach(([lat, lng]) => bounds.push([lat, lng]));
+
+              const roadLine = L.polyline(activeRouteResult.geometry, {
+                color: '#2563eb',
+                weight: 5,
+                opacity: 0.9,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }).addTo(routeGroup);
+
+              polylineLayerRef.current = roadLine;
+            }
+          }
+        }
+      }
+
+      // --- MODE B: MULTI-DAY ITINERARY MODE ---
+      else if (activeItinerary && itineraryDaysWithDest.length > 1) {
+        const routePoints: [number, number][] = itineraryDaysWithDest.map((item) => [
+          item.destination!.latitude,
+          item.destination!.longitude,
+        ]);
+
+        const polyline = L.polyline(routePoints, {
+          color: '#059669',
+          weight: 4.5,
+          dashArray: '8, 8',
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(routeGroup);
+
+        polylineLayerRef.current = polyline;
+
+        filteredDestinations.forEach((dest) => {
+          if (!isValidCoord(dest.latitude, dest.longitude)) return;
+          const isSelected = activeDestination?.id === dest.id;
+          const itinDay = itineraryDaysWithDest.find(
+            (item) => item.destination && item.destination.id === dest.id
+          );
+          const crowd = getCrowdInfo(dest.crowd_status);
+
+          const latLng: [number, number] = [dest.latitude, dest.longitude];
+          bounds.push(latLng);
+
+          const badgeContent = itinDay ? `D${itinDay.day.dayNumber}` : '';
+          const crowdDot = crowd.level === 'HIGH' ? '🟢' : '🟡';
+
+          const iconHtml = `
+            <div class="leaflet-marker-custom ${isSelected ? 'marker-selected' : ''}" style="
+              display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer;
+            ">
+              <div style="
+                background: ${isSelected ? '#047857' : '#065f46'};
+                color: #ffffff;
+                border: 2px solid ${isSelected ? '#34d399' : '#10b981'};
+                box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+                border-radius: 9999px;
+                padding: 4px 9px;
+                font-size: 11px;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                transform: ${isSelected ? 'scale(1.12)' : 'scale(1)'};
+                transition: all 0.2s ease;
+                white-space: nowrap;
+              ">
+                <span style="background:#10b981;color:#064e3b;font-size:9px;padding:1px 4px;border-radius:4px;font-weight:800;">${badgeContent}</span>
+                <span>${dest.name}</span>
+                <span style="font-size: 8px;">${crowdDot}</span>
               </div>
               ${
-                isGpsOrigin
+                isSelected
                   ? `<div style="
                       position: absolute;
-                      width: 34px;
-                      height: 34px;
-                      border-radius: 50%;
-                      background: rgba(37, 99, 235, 0.4);
-                      border: 1.5px solid rgba(147, 197, 253, 0.8);
-                      animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
-                      z-index: 5;
-                      pointer-events: none;
+                      bottom: -6px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      width: 0;
+                      height: 0;
+                      border-left: 5px solid transparent;
+                      border-right: 5px solid transparent;
+                      border-top: 6px solid #047857;
                     "></div>`
                   : ''
               }
             </div>
           `;
-          const originIcon = L.divIcon({
-            className: 'custom-origin-icon',
-            html: originHtml,
+
+          const customIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: iconHtml,
             iconSize: [140, 32],
             iconAnchor: [70, 16],
           });
-          L.marker(originLatLng, { icon: originIcon }).addTo(markersGroup);
 
-          // Draw real road route polyline only when calculated
-          if (activeRouteResult && activeRouteResult.geometry.length > 0) {
-            activeRouteResult.geometry.forEach(([lat, lng]) => bounds.push([lat, lng]));
+          const marker = L.marker(latLng, { icon: customIcon });
+          marker.on('click', () => {
+            setActiveDestination(dest);
+            setSelectedVendor(null);
+            setDrawerState('collapsed');
+            if (isMapAlive(mapInstanceRef.current)) {
+              safeFlyTo(mapInstanceRef.current, latLng, Math.max(mapInstanceRef.current.getZoom(), 11), { duration: 0.8 });
+            }
+          });
+          markersGroup.addLayer(marker);
+        });
+      }
 
-            const roadLine = L.polyline(activeRouteResult.geometry, {
-              color: '#2563eb',
-              weight: 5,
-              opacity: 0.9,
-              lineCap: 'round',
-              lineJoin: 'round',
-            }).addTo(routeGroup);
+      // --- MODE C: STANDARD & CROWD EXPLORATION MODE ---
+      else {
+        filteredDestinations.forEach((dest) => {
+          if (!isValidCoord(dest.latitude, dest.longitude)) return;
 
-            polylineLayerRef.current = roadLine;
-          }
+          const isSelected = activeDestination?.id === dest.id;
+          const crowd = getCrowdInfo(dest.crowd_status);
+          const latLng: [number, number] = [dest.latitude, dest.longitude];
+          bounds.push(latLng);
+
+          const crowdIndicator = crowd.level === 'HIGH' ? '🟢' : '🟡';
+
+          const iconHtml = `
+            <div class="leaflet-marker-custom ${isSelected ? 'marker-selected' : ''}" style="
+              display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer;
+            ">
+              <div style="
+                background: ${isSelected ? '#059669' : '#1c1917'};
+                color: #ffffff;
+                border: 2px solid ${isSelected ? '#34d399' : '#44403c'};
+                box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+                border-radius: 9999px;
+                padding: 4px 9px;
+                font-size: 11px;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                transform: ${isSelected ? 'scale(1.12)' : 'scale(1)'};
+                transition: all 0.2s ease;
+                white-space: nowrap;
+              ">
+                <span style="font-size: 9px;">${crowdIndicator}</span>
+                <span>${dest.name}</span>
+              </div>
+              ${
+                isSelected
+                  ? `<div style="
+                      position: absolute;
+                      bottom: -6px;
+                      left: 50%;
+                      transform: translateX(-50%);
+                      width: 0;
+                      height: 0;
+                      border-left: 5px solid transparent;
+                      border-right: 5px solid transparent;
+                      border-top: 6px solid #059669;
+                    "></div>`
+                  : ''
+              }
+            </div>
+          `;
+
+          const customIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: iconHtml,
+            iconSize: [130, 32],
+            iconAnchor: [65, 16],
+          });
+
+          const marker = L.marker(latLng, { icon: customIcon });
+          marker.on('click', () => {
+            setActiveDestination(dest);
+            setSelectedVendor(null);
+            setDrawerState('collapsed');
+            if (isMapAlive(mapInstanceRef.current)) {
+              safeFlyTo(mapInstanceRef.current, latLng, Math.max(mapInstanceRef.current.getZoom(), 11), { duration: 0.8 });
+            }
+          });
+          markersGroup.addLayer(marker);
+        });
+      }
+
+      // Fit bounds safely without conflicting with active manual flyTo
+      if (bounds.length > 0) {
+        if (bounds.length === 1) {
+          safeFlyTo(map, bounds[0], 11);
+        } else {
+          safeFitBounds(map, L.latLngBounds(bounds), {
+            padding: [50, 50],
+            maxZoom: 12,
+            animate: false,
+          });
         }
       }
-    }
-
-    // --- MODE B: MULTI-DAY ITINERARY MODE ---
-    else if (activeItinerary && itineraryDaysWithDest.length > 1) {
-      const routePoints: [number, number][] = itineraryDaysWithDest.map((item) => [
-        item.destination!.latitude,
-        item.destination!.longitude,
-      ]);
-
-      const polyline = L.polyline(routePoints, {
-        color: '#059669',
-        weight: 4.5,
-        dashArray: '8, 8',
-        opacity: 0.9,
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(map);
-
-      polylineLayerRef.current = polyline;
-
-      filteredDestinations.forEach((dest) => {
-        if (!isValidCoord(dest.latitude, dest.longitude)) return;
-        const isSelected = activeDestination?.id === dest.id;
-        const itinDay = itineraryDaysWithDest.find(
-          (item) => item.destination && item.destination.id === dest.id
-        );
-        const crowd = getCrowdInfo(dest.crowd_status);
-
-        const latLng: [number, number] = [dest.latitude, dest.longitude];
-        bounds.push(latLng);
-
-        const badgeContent = itinDay ? `D${itinDay.day.dayNumber}` : '';
-        const crowdDot = crowd.level === 'HIGH' ? '🟢' : '🟡';
-
-        const iconHtml = `
-          <div class="leaflet-marker-custom ${isSelected ? 'marker-selected' : ''}" style="
-            display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer;
-          ">
-            <div style="
-              background: ${isSelected ? '#047857' : '#065f46'};
-              color: #ffffff;
-              border: 2px solid ${isSelected ? '#34d399' : '#10b981'};
-              box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-              border-radius: 9999px;
-              padding: 4px 9px;
-              font-size: 11px;
-              font-weight: 700;
-              display: flex;
-              align-items: center;
-              gap: 4px;
-              transform: ${isSelected ? 'scale(1.12)' : 'scale(1)'};
-              transition: all 0.2s ease;
-              white-space: nowrap;
-            ">
-              <span style="background:#10b981;color:#064e3b;font-size:9px;padding:1px 4px;border-radius:4px;font-weight:800;">${badgeContent}</span>
-              <span>${dest.name}</span>
-              <span style="font-size: 8px;">${crowdDot}</span>
-            </div>
-            ${
-              isSelected
-                ? `<div style="
-                    position: absolute;
-                    bottom: -6px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    width: 0;
-                    height: 0;
-                    border-left: 5px solid transparent;
-                    border-right: 5px solid transparent;
-                    border-top: 6px solid #047857;
-                  "></div>`
-                : ''
-            }
-          </div>
-        `;
-
-        const customIcon = L.divIcon({
-          className: 'custom-div-icon',
-          html: iconHtml,
-          iconSize: [140, 32],
-          iconAnchor: [70, 16],
-        });
-
-        const marker = L.marker(latLng, { icon: customIcon });
-        marker.on('click', () => {
-          setActiveDestination(dest);
-          setSelectedVendor(null);
-          setDrawerState('collapsed');
-          map.flyTo(latLng, Math.max(map.getZoom(), 11), { duration: 0.8 });
-        });
-        markersGroup.addLayer(marker);
-      });
-    }
-
-    // --- MODE C: STANDARD & CROWD EXPLORATION MODE ---
-    else {
-      filteredDestinations.forEach((dest) => {
-        if (!isValidCoord(dest.latitude, dest.longitude)) return;
-
-        const isSelected = activeDestination?.id === dest.id;
-        const crowd = getCrowdInfo(dest.crowd_status);
-        const latLng: [number, number] = [dest.latitude, dest.longitude];
-        bounds.push(latLng);
-
-        const crowdIndicator = crowd.level === 'HIGH' ? '🟢' : '🟡';
-
-        const iconHtml = `
-          <div class="leaflet-marker-custom ${isSelected ? 'marker-selected' : ''}" style="
-            display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer;
-          ">
-            <div style="
-              background: ${isSelected ? '#059669' : '#1c1917'};
-              color: #ffffff;
-              border: 2px solid ${isSelected ? '#34d399' : '#44403c'};
-              box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-              border-radius: 9999px;
-              padding: 4px 9px;
-              font-size: 11px;
-              font-weight: 700;
-              display: flex;
-              align-items: center;
-              gap: 4px;
-              transform: ${isSelected ? 'scale(1.12)' : 'scale(1)'};
-              transition: all 0.2s ease;
-              white-space: nowrap;
-            ">
-              <span style="font-size: 9px;">${crowdIndicator}</span>
-              <span>${dest.name}</span>
-            </div>
-            ${
-              isSelected
-                ? `<div style="
-                    position: absolute;
-                    bottom: -6px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    width: 0;
-                    height: 0;
-                    border-left: 5px solid transparent;
-                    border-right: 5px solid transparent;
-                    border-top: 6px solid #059669;
-                  "></div>`
-                : ''
-            }
-          </div>
-        `;
-
-        const customIcon = L.divIcon({
-          className: 'custom-div-icon',
-          html: iconHtml,
-          iconSize: [130, 32],
-          iconAnchor: [65, 16],
-        });
-
-        const marker = L.marker(latLng, { icon: customIcon });
-        marker.on('click', () => {
-          setActiveDestination(dest);
-          setSelectedVendor(null);
-          setDrawerState('collapsed');
-          map.flyTo(latLng, Math.max(map.getZoom(), 11), { duration: 0.8 });
-        });
-        markersGroup.addLayer(marker);
-      });
-    }
-
-    // Fit bounds smoothly
-    if (bounds.length > 0) {
-      if (bounds.length === 1) {
-        map.setView(bounds[0], 11);
-      } else {
-        map.fitBounds(L.latLngBounds(bounds), {
-          padding: [50, 50],
-          maxZoom: 12,
-          animate: true,
-        });
-      }
+    } catch (e) {
+      console.error('Failed to update map layers:', e);
     }
   }, [
     filteredDestinations,
-    activeDestination,
     activeItinerary,
     itineraryDaysWithDest,
     directionsMode,
@@ -958,10 +1104,7 @@ export function InteractiveMap({
     if (target && isValidCoord(target.latitude, target.longitude)) {
       setActiveDestination(target);
       setDrawerState('collapsed');
-      const map = mapInstanceRef.current;
-      if (map) {
-        map.flyTo([target.latitude, target.longitude], 12, { duration: 1.2 });
-      }
+      safeFlyTo(mapInstanceRef.current, [target.latitude, target.longitude], 12, { duration: 1.2 });
     } else if (!activeDestination && destinations.length > 0) {
       const firstValid = destinations.find((d) => isValidCoord(d.latitude, d.longitude));
       if (firstValid) {
@@ -976,20 +1119,24 @@ export function InteractiveMap({
   };
 
   const handleZoomIn = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.zoomIn();
+    if (isMapAlive(mapInstanceRef.current)) {
+      try {
+        mapInstanceRef.current.zoomIn();
+      } catch {}
     }
   };
 
   const handleZoomOut = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.zoomOut();
+    if (isMapAlive(mapInstanceRef.current)) {
+      try {
+        mapInstanceRef.current.zoomOut();
+      } catch {}
     }
   };
 
   const handleRecenter = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([23.6102, 85.2799], 8, { duration: 1 });
+    if (isMapAlive(mapInstanceRef.current)) {
+      safeFlyTo(mapInstanceRef.current, [23.6102, 85.2799], 8, { duration: 1 });
     }
   };
 
@@ -999,8 +1146,8 @@ export function InteractiveMap({
     setDrawerState('collapsed');
     setSearchQuery('');
     setSearchOpen(false);
-    if (mapInstanceRef.current && isValidCoord(dest.latitude, dest.longitude)) {
-      mapInstanceRef.current.flyTo([dest.latitude, dest.longitude], 13, { duration: 1.2 });
+    if (isValidCoord(dest.latitude, dest.longitude)) {
+      safeFlyTo(mapInstanceRef.current, [dest.latitude, dest.longitude], 13, { duration: 1.2 });
     }
   };
 
@@ -1300,6 +1447,27 @@ export function InteractiveMap({
             )}
             <span className="hidden md:inline">{showCrowdZones ? 'Zones ON' : 'Zones OFF'}</span>
           </button>
+
+          {/* Offline Maps GIS Download Button */}
+          <button
+            onClick={() => setShowOfflineModal(true)}
+            aria-label="Download for offline"
+            title="Download map regions & tile cache for offline use"
+            className={`h-9 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer shadow-xs ${
+              offlineRegionCount > 0
+                ? 'bg-emerald-600 border-emerald-500 text-white'
+                : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100'
+            }`}
+          >
+            <HardDrive className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline">Offline Maps</span>
+            <span className="sm:hidden">Offline</span>
+            {offlineRegionCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-white text-emerald-800 text-[10px] font-extrabold shadow-xs">
+                {offlineRegionCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Second Row: Mode Tabs & GPS Action Button */}
@@ -1429,7 +1597,7 @@ export function InteractiveMap({
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-3 sm:p-5 text-stone-900 dark:text-white shadow-xl overflow-hidden relative">
         {/* Map Canvas Section */}
-        <div className="lg:col-span-2 relative h-[520px] sm:h-[620px] rounded-2xl bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 overflow-hidden">
+        <div className="lg:col-span-2 relative h-[480px] sm:h-[580px] lg:h-[680px] xl:h-[720px] rounded-2xl bg-stone-100 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 overflow-hidden">
           {/* Leaflet Map Root */}
           <div
             ref={mapContainerRef}
@@ -1507,9 +1675,20 @@ export function InteractiveMap({
                 onClick={handleRecenter}
                 title="Recenter Map"
                 aria-label="Recenter Map"
-                className="p-2 text-emerald-600 dark:text-emerald-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                className="p-2 text-emerald-600 dark:text-emerald-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors border-b border-stone-100 dark:border-stone-800 cursor-pointer"
               >
                 <Compass className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setShowOfflineModal(true)}
+                title="Download for Offline Use"
+                aria-label="Download for Offline Use"
+                className="p-2 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer relative"
+              >
+                <HardDrive className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                {offlineRegionCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full ring-1 ring-white" />
+                )}
               </button>
             </div>
 
@@ -2043,7 +2222,7 @@ export function InteractiveMap({
         {/* ========================================================================= */}
         {/* 3. DESKTOP SIDE PANEL (Full Details, Vendors & Directions)               */}
         {/* ========================================================================= */}
-        <div className="hidden lg:flex flex-col justify-between h-[520px] sm:h-[620px] bg-stone-50/90 dark:bg-stone-950/90 rounded-2xl border border-stone-200 dark:border-stone-800 p-5 overflow-y-auto">
+        <div className="hidden lg:flex flex-col justify-between h-[480px] sm:h-[580px] lg:h-[680px] xl:h-[720px] bg-stone-50/90 dark:bg-stone-950/90 rounded-2xl border border-stone-200 dark:border-stone-800 p-5 overflow-y-auto">
           {/* Selected Vendor Detail View */}
           {selectedVendor ? (
             <div className="space-y-4 flex-1 flex flex-col justify-between">
@@ -2754,6 +2933,17 @@ export function InteractiveMap({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* 7. MODAL: OFFLINE GIS MAP DOWNLOAD & STORAGE (INDEXEDDB)                 */}
+      {/* ========================================================================= */}
+      <OfflineMapModal
+        isOpen={showOfflineModal}
+        onClose={() => setShowOfflineModal(false)}
+        onNavigateToRegion={handleNavigateToOfflineRegion}
+        currentMapBounds={currentMapBounds}
+        currentMapCenter={currentMapCenter}
+      />
     </div>
   );
 }

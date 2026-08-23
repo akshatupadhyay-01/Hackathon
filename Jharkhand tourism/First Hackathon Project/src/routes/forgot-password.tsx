@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth-context';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { SEO } from '../components/seo';
 
 interface ForgotPasswordPageProps {
   navigate: (path: string) => void;
@@ -91,6 +92,7 @@ export function ForgotPasswordPage({ navigate, isResetMode = false }: ForgotPass
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 bg-gradient-to-b from-stone-50 via-white to-stone-50 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950">
+      <SEO title={isRecoveryFlow ? 'Reset Your Password' : 'Forgot Password'} noIndex={true} canonicalPath="/forgot-password" />
       <div className="max-w-md w-full space-y-6">
         {/* Header Branding */}
         <div className="text-center space-y-2">

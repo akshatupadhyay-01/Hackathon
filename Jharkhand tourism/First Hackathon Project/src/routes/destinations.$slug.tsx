@@ -65,6 +65,7 @@ import {
 } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { DigitalEcoPass } from '../components/digital-eco-pass';
+import { SEO } from '../components/seo';
 
 interface DestinationDetailPageProps {
   slug: string;
@@ -436,8 +437,83 @@ export function DestinationDetailPage({ slug, navigate }: DestinationDetailPageP
     peak: 'Peak Rush Hours',
   };
 
+  const destinationSchema = destination
+    ? {
+        '@context': 'https://schema.org',
+        '@graph': [
+          {
+            '@type': 'TouristDestination',
+            '@id': `https://johar-jharkhand-tourism.gov.in/destinations/${destination.slug}`,
+            name: destination.name,
+            description: destination.description,
+            image: destination.images && destination.images.length > 0 ? destination.images : [destination.featured_image],
+            url: `https://johar-jharkhand-tourism.gov.in/destinations/${destination.slug}`,
+            touristType: destination.tags || ['Eco-Tourism', 'Heritage'],
+            geo: {
+              '@type': 'GeoCoordinates',
+              latitude: destination.latitude,
+              longitude: destination.longitude,
+            },
+            address: {
+              '@type': 'PostalAddress',
+              addressRegion: destination.district?.name || 'Jharkhand',
+              addressCountry: 'IN',
+            },
+            aggregateRating: destination.rating
+              ? {
+                  '@type': 'AggregateRating',
+                  ratingValue: destination.rating,
+                  bestRating: 5,
+                  ratingCount: destination.review_count || 100,
+                }
+              : undefined,
+            offers: {
+              '@type': 'Offer',
+              price: destination.entry_fee_inr,
+              priceCurrency: 'INR',
+              availability: 'https://schema.org/InStock',
+            },
+            publicAccess: true,
+            isAccessibleForFree: destination.entry_fee_inr === 0,
+          },
+          {
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              {
+                '@type': 'ListItem',
+                position: 1,
+                name: 'Home',
+                item: 'https://johar-jharkhand-tourism.gov.in/',
+              },
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: 'Destinations',
+                item: 'https://johar-jharkhand-tourism.gov.in/explore',
+              },
+              {
+                '@type': 'ListItem',
+                position: 3,
+                name: destination.name,
+                item: `https://johar-jharkhand-tourism.gov.in/destinations/${destination.slug}`,
+              },
+            ],
+          },
+        ],
+      }
+    : undefined;
+
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 py-8 md:py-12">
+      <SEO
+        title={destination ? `${destination.name} — ${destination.tagline || 'Eco Destination'}` : 'Destination Details'}
+        description={destination ? `${destination.description.slice(0, 155)}... Book local guides & digital eco-pass.` : undefined}
+        keywords={destination ? `${destination.name}, ${destination.district?.name || 'Jharkhand'}, ${destination.category?.name || 'Eco Tourism'}, ${destination.tags?.join(', ') || ''}, Jharkhand travel guide, tourist booking` : undefined}
+        canonicalPath={`/destinations/${destination?.slug || slug}`}
+        ogImage={destination?.featured_image}
+        ogType="place"
+        schema={destinationSchema}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Top Back Navigation Bar */}
         <div className="flex items-center justify-between">
@@ -552,6 +628,7 @@ export function DestinationDetailPage({ slug, navigate }: DestinationDetailPageP
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
             <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-white text-xs">
               <span className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full font-medium">
                 Verified Ecological Landmark
@@ -1760,6 +1837,43 @@ export function DestinationDetailPage({ slug, navigate }: DestinationDetailPageP
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Mobile-Only Sticky Floating Booking Action Bar */}
+      {destination && (
+        <div className="lg:hidden fixed bottom-[calc(3.85rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-30 px-3 py-2 pointer-events-none">
+          <div className="max-w-lg mx-auto bg-stone-900/95 dark:bg-stone-900/95 backdrop-blur-md border border-emerald-500/40 rounded-2xl p-2.5 shadow-2xl flex items-center justify-between gap-3 pointer-events-auto text-white">
+            <div className="pl-2">
+              <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">
+                Digital Eco-Pass
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-base font-extrabold text-white">
+                  {destination.entry_fee_inr === 0 ? 'Free Entry' : `₹${destination.entry_fee_inr}`}
+                </span>
+                <span className="text-[10px] text-stone-400">/ person</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleOpenDirectionsModal}
+                className="h-9 px-2.5 rounded-xl border-stone-700 bg-stone-800 text-stone-200 text-xs font-semibold hover:bg-stone-700"
+              >
+                <Car className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleOpenBooking(null)}
+                className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md active:scale-95 transition-transform"
+              >
+                Book Eco-Pass
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

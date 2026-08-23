@@ -18,6 +18,13 @@ import {
   SEED_VENDORS,
   SEED_REVIEWS,
 } from '../data/jharkhand';
+import {
+  sanitizeDbSearchTerm,
+  safeContains,
+  isValidSlug,
+  safeLogger,
+  SECURITY_LIMITS,
+} from '../lib/security';
 
 export interface DestinationFilterOptions {
   categorySlug?: string;
@@ -40,9 +47,9 @@ export async function fetchCategories(): Promise<Category[]> {
       if (!error && data && data.length > 0) {
         return data as Category[];
       }
-      if (error) console.warn('Supabase fetchCategories error, falling back to seed:', error.message);
+      if (error) safeLogger.warn('Supabase fetchCategories error, falling back to seed:', error.message);
     } catch (err) {
-      console.warn('Supabase fetchCategories network error:', err);
+      safeLogger.warn('Supabase fetchCategories network error:', err);
     }
   }
   return SEED_CATEGORIES;
@@ -61,20 +68,31 @@ export async function fetchDistricts(): Promise<District[]> {
       if (!error && data && data.length > 0) {
         return data as District[];
       }
-      if (error) console.warn('Supabase fetchDistricts error, falling back to seed:', error.message);
+      if (error) safeLogger.warn('Supabase fetchDistricts error, falling back to seed:', error.message);
     } catch (err) {
-      console.warn('Supabase fetchDistricts network error:', err);
+      safeLogger.warn('Supabase fetchDistricts network error:', err);
     }
   }
   return SEED_DISTRICTS;
 }
 
 /**
- * Fetch destinations with optional filters
+ * Fetch destinations with optional filters (Hardened against SQL injection & ReDoS)
  */
 export async function fetchDestinations(
   filters?: DestinationFilterOptions
 ): Promise<Destination[]> {
+  // Sanitize filter arguments
+  const sanitizedSearch = filters?.searchQuery
+    ? sanitizeDbSearchTerm(filters.searchQuery, SECURITY_LIMITS.MAX_SEARCH_QUERY_LENGTH)
+    : '';
+  const sanitizedDistrictId = filters?.districtId
+    ? sanitizeDbSearchTerm(filters.districtId, 50)
+    : '';
+  const sanitizedCategorySlug = filters?.categorySlug
+    ? sanitizeDbSearchTerm(filters.categorySlug, 50)
+    : '';
+
   if (isSupabaseConfigured() && supabase) {
     try {
       let query = supabase
@@ -87,35 +105,34 @@ export async function fetchDestinations(
       if (filters?.ecoCertifiedOnly) {
         query = query.eq('is_eco_certified', true);
       }
-      if (filters?.districtId && filters.districtId !== 'all') {
-        query = query.eq('district_id', filters.districtId);
+      if (sanitizedDistrictId && sanitizedDistrictId !== 'all') {
+        query = query.eq('district_id', sanitizedDistrictId);
       }
 
       const { data, error } = await query;
       if (!error && data) {
         let results = data as Destination[];
 
-        // Apply in-memory search and category filter if joined relations
-        if (filters?.categorySlug && filters.categorySlug !== 'all') {
+        // Apply in-memory search and category filter safely (linear time)
+        if (sanitizedCategorySlug && sanitizedCategorySlug !== 'all') {
           results = results.filter(
-            (d) => d.category?.slug === filters.categorySlug
+            (d) => d.category?.slug === sanitizedCategorySlug
           );
         }
-        if (filters?.searchQuery && filters.searchQuery.trim()) {
-          const q = filters.searchQuery.toLowerCase().trim();
+        if (sanitizedSearch) {
           results = results.filter(
             (d) =>
-              d.name.toLowerCase().includes(q) ||
-              d.description.toLowerCase().includes(q) ||
-              d.district?.name.toLowerCase().includes(q) ||
-              (d.tags && d.tags.some((t) => t.toLowerCase().includes(q)))
+              safeContains(d.name, sanitizedSearch) ||
+              safeContains(d.description, sanitizedSearch) ||
+              safeContains(d.district?.name, sanitizedSearch) ||
+              (d.tags && d.tags.some((t) => safeContains(t, sanitizedSearch)))
           );
         }
         return results;
       }
-      if (error) console.warn('Supabase fetchDestinations error, falling back to seed:', error.message);
+      if (error) safeLogger.warn('Supabase fetchDestinations error, falling back to seed:', error.message);
     } catch (err) {
-      console.warn('Supabase fetchDestinations network error:', err);
+      safeLogger.warn('Supabase fetchDestinations network error:', err);
     }
   }
 
@@ -128,20 +145,19 @@ export async function fetchDestinations(
   if (filters?.ecoCertifiedOnly) {
     results = results.filter((d) => d.is_eco_certified);
   }
-  if (filters?.districtId && filters.districtId !== 'all') {
-    results = results.filter((d) => d.district_id === filters.districtId);
+  if (sanitizedDistrictId && sanitizedDistrictId !== 'all') {
+    results = results.filter((d) => d.district_id === sanitizedDistrictId);
   }
-  if (filters?.categorySlug && filters.categorySlug !== 'all') {
-    results = results.filter((d) => d.category?.slug === filters.categorySlug);
+  if (sanitizedCategorySlug && sanitizedCategorySlug !== 'all') {
+    results = results.filter((d) => d.category?.slug === sanitizedCategorySlug);
   }
-  if (filters?.searchQuery && filters.searchQuery.trim()) {
-    const q = filters.searchQuery.toLowerCase().trim();
+  if (sanitizedSearch) {
     results = results.filter(
       (d) =>
-        d.name.toLowerCase().includes(q) ||
-        d.description.toLowerCase().includes(q) ||
-        d.district?.name.toLowerCase().includes(q) ||
-        (d.tags && d.tags.some((t) => t.toLowerCase().includes(q)))
+        safeContains(d.name, sanitizedSearch) ||
+        safeContains(d.description, sanitizedSearch) ||
+        safeContains(d.district?.name, sanitizedSearch) ||
+        (d.tags && d.tags.some((t) => safeContains(t, sanitizedSearch)))
     );
   }
 
@@ -154,23 +170,26 @@ export async function fetchDestinations(
 export async function fetchDestinationBySlug(
   slug: string
 ): Promise<Destination | null> {
+  const safeSlug = sanitizeDbSearchTerm(slug, 80);
+  if (!safeSlug) return null;
+
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('destinations')
         .select('*, district:districts(*), category:categories(*)')
-        .eq('slug', slug)
+        .eq('slug', safeSlug)
         .single();
       if (!error && data) {
         return data as Destination;
       }
-      if (error) console.warn(`Supabase fetchDestinationBySlug('${slug}') error:`, error.message);
+      if (error) safeLogger.warn(`Supabase fetchDestinationBySlug('${safeSlug}') error:`, error.message);
     } catch (err) {
-      console.warn('Supabase fetchDestinationBySlug network error:', err);
+      safeLogger.warn('Supabase fetchDestinationBySlug network error:', err);
     }
   }
 
-  const found = SEED_DESTINATIONS.find((d) => d.slug === slug);
+  const found = SEED_DESTINATIONS.find((d) => d.slug === safeSlug);
   return found || null;
 }
 
@@ -180,22 +199,24 @@ export async function fetchDestinationBySlug(
 export async function fetchLocalGuides(
   destinationId?: string
 ): Promise<LocalGuide[]> {
+  const safeDestId = destinationId ? sanitizeDbSearchTerm(destinationId, 50) : undefined;
+
   if (isSupabaseConfigured() && supabase) {
     try {
       let query = supabase.from('local_guides').select('*');
-      if (destinationId) {
-        query = query.eq('destination_id', destinationId);
+      if (safeDestId) {
+        query = query.eq('destination_id', safeDestId);
       }
       const { data, error } = await query;
       if (!error && data && data.length > 0) {
         return data as LocalGuide[];
       }
     } catch (err) {
-      console.warn('Supabase fetchLocalGuides error:', err);
+      safeLogger.warn('Supabase fetchLocalGuides error:', err);
     }
   }
-  if (destinationId) {
-    const matched = SEED_GUIDES.filter((g) => g.destination_id === destinationId);
+  if (safeDestId) {
+    const matched = SEED_GUIDES.filter((g) => g.destination_id === safeDestId);
     return matched.length > 0 ? matched : SEED_GUIDES;
   }
   return SEED_GUIDES;
@@ -205,22 +226,24 @@ export async function fetchLocalGuides(
  * Fetch local craft vendors & homestays
  */
 export async function fetchVendors(type?: string): Promise<Vendor[]> {
+  const safeType = type && type !== 'all' ? sanitizeDbSearchTerm(type, 50) : undefined;
+
   if (isSupabaseConfigured() && supabase) {
     try {
       let query = supabase.from('vendors').select('*, district:districts(*)');
-      if (type && type !== 'all') {
-        query = query.eq('vendor_type', type);
+      if (safeType) {
+        query = query.eq('vendor_type', safeType);
       }
       const { data, error } = await query;
       if (!error && data && data.length > 0) {
         return data as Vendor[];
       }
     } catch (err) {
-      console.warn('Supabase fetchVendors error:', err);
+      safeLogger.warn('Supabase fetchVendors error:', err);
     }
   }
-  if (type && type !== 'all') {
-    return SEED_VENDORS.filter((v) => v.vendor_type === type);
+  if (safeType) {
+    return SEED_VENDORS.filter((v) => v.vendor_type === safeType);
   }
   return SEED_VENDORS;
 }
@@ -231,21 +254,24 @@ export async function fetchVendors(type?: string): Promise<Vendor[]> {
 export async function fetchReviews(
   destinationId: string
 ): Promise<Review[]> {
+  const safeDestId = sanitizeDbSearchTerm(destinationId, 50);
+  if (!safeDestId) return [];
+
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('reviews')
         .select('*')
-        .eq('destination_id', destinationId)
+        .eq('destination_id', safeDestId)
         .order('created_at', { ascending: false });
       if (!error && data && data.length > 0) {
         return data as Review[];
       }
     } catch (err) {
-      console.warn('Supabase fetchReviews error:', err);
+      safeLogger.warn('Supabase fetchReviews error:', err);
     }
   }
-  return SEED_REVIEWS.filter((r) => r.destination_id === destinationId);
+  return SEED_REVIEWS.filter((r) => r.destination_id === safeDestId);
 }
 
 /**
@@ -270,10 +296,10 @@ export function getStoredBookings(): Booking[] {
     const raw = localStorage.getItem(STORAGE_BOOKINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.slice(0, 100);
     }
   } catch (err) {
-    console.warn('Error reading stored bookings:', err);
+    safeLogger.warn('Error reading stored bookings:', err);
   }
   return [];
 }
@@ -284,10 +310,10 @@ export function getStoredBookings(): Booking[] {
 export function storeBooking(booking: Booking): void {
   try {
     const existing = getStoredBookings();
-    const updated = [booking, ...existing.filter((b) => b.id !== booking.id && b.eco_pass_code !== booking.eco_pass_code)];
+    const updated = [booking, ...existing.filter((b) => b.id !== booking.id && b.eco_pass_code !== booking.eco_pass_code)].slice(0, 100);
     localStorage.setItem(STORAGE_BOOKINGS_KEY, JSON.stringify(updated));
   } catch (err) {
-    console.warn('Error storing booking locally:', err);
+    safeLogger.warn('Error storing booking locally:', err);
   }
 }
 
@@ -297,7 +323,9 @@ export function storeBooking(booking: Booking): void {
 export async function createBooking(
   bookingData: Omit<Booking, 'id' | 'created_at' | 'eco_pass_code' | 'status'> & { eco_pass_code?: string; visitor_name?: string }
 ): Promise<{ success: boolean; booking: Booking | null; error?: string }> {
-  const ecoPassCode = bookingData.eco_pass_code || generateBookingId();
+  const ecoPassCode = bookingData.eco_pass_code
+    ? sanitizeDbSearchTerm(bookingData.eco_pass_code, 30)
+    : generateBookingId();
 
   if (isSupabaseConfigured() && supabase) {
     try {
@@ -319,10 +347,10 @@ export async function createBooking(
         return { success: true, booking: savedBooking };
       }
       if (error) {
-        console.warn('Supabase booking insert error:', error.message);
+        safeLogger.warn('Supabase booking insert error:', error.message);
       }
     } catch (err: any) {
-      console.warn('Supabase booking exception:', err.message);
+      safeLogger.warn('Supabase booking exception:', err.message);
     }
   }
 
@@ -343,29 +371,31 @@ export async function createBooking(
  * Fetch bookings associated with a specific user
  */
 export async function fetchUserBookings(userId: string): Promise<Booking[]> {
-  if (isSupabaseConfigured() && supabase && userId) {
+  const safeUserId = sanitizeDbSearchTerm(userId, 80);
+
+  if (isSupabaseConfigured() && supabase && safeUserId) {
     try {
       const { data, error } = await supabase
         .from('bookings')
         .select('*, destination:destinations(*), vendor:vendors(*), guide:local_guides(*)')
-        .eq('user_id', userId)
+        .eq('user_id', safeUserId)
         .order('created_at', { ascending: false });
 
       if (!error && data) {
         return data as Booking[];
       }
       if (error) {
-        console.warn('Supabase fetchUserBookings error:', error.message);
+        safeLogger.warn('Supabase fetchUserBookings error:', error.message);
       }
     } catch (err) {
-      console.warn('Supabase fetchUserBookings exception:', err);
+      safeLogger.warn('Supabase fetchUserBookings exception:', err);
     }
   }
 
   // Local storage fallback for bookings
   const local = getStoredBookings();
-  if (userId) {
-    const userMatched = local.filter((b) => b.user_id === userId || !b.user_id);
+  if (safeUserId) {
+    const userMatched = local.filter((b) => b.user_id === safeUserId || !b.user_id);
     return userMatched;
   }
   return local;
@@ -377,22 +407,24 @@ const STORAGE_SAVED_ITINERARIES_KEY = 'jharkhand_saved_itineraries';
  * Fetch saved itineraries for an authenticated user
  */
 export async function fetchUserSavedItineraries(userId: string): Promise<SavedItinerary[]> {
-  if (isSupabaseConfigured() && supabase && userId) {
+  const safeUserId = sanitizeDbSearchTerm(userId, 80);
+
+  if (isSupabaseConfigured() && supabase && safeUserId) {
     try {
       const { data, error } = await supabase
         .from('saved_itineraries')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', safeUserId)
         .order('created_at', { ascending: false });
 
       if (!error && data) {
         return data as SavedItinerary[];
       }
       if (error) {
-        console.warn('Supabase fetchUserSavedItineraries error:', error.message);
+        safeLogger.warn('Supabase fetchUserSavedItineraries error:', error.message);
       }
     } catch (err) {
-      console.warn('Supabase fetchUserSavedItineraries exception:', err);
+      safeLogger.warn('Supabase fetchUserSavedItineraries exception:', err);
     }
   }
 
@@ -402,14 +434,14 @@ export async function fetchUserSavedItineraries(userId: string): Promise<SavedIt
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        if (userId) {
-          return parsed.filter((item: SavedItinerary) => item.user_id === userId || !item.user_id);
+        if (safeUserId) {
+          return parsed.filter((item: SavedItinerary) => item.user_id === safeUserId || !item.user_id).slice(0, 50);
         }
-        return parsed;
+        return parsed.slice(0, 50);
       }
     }
   } catch (err) {
-    console.warn('Error reading saved itineraries from local storage:', err);
+    safeLogger.warn('Error reading saved itineraries from local storage:', err);
   }
   return [];
 }
@@ -421,17 +453,19 @@ export async function saveUserItinerary(
   userId: string,
   itinerary: ItineraryResponse
 ): Promise<{ success: boolean; data?: SavedItinerary; error?: string }> {
+  const safeUserId = sanitizeDbSearchTerm(userId || 'demo-user', 80);
+
   const newRecord: Omit<SavedItinerary, 'id' | 'created_at'> = {
-    user_id: userId,
-    title: itinerary.title || 'Jharkhand Eco Circuit',
-    duration_days: itinerary.days?.length || 3,
+    user_id: safeUserId,
+    title: sanitizeDbSearchTerm(itinerary.title || 'Jharkhand Eco Circuit', 120),
+    duration_days: Math.min(14, Math.max(1, itinerary.days?.length || 3)),
     budget_level: itinerary.totalEstimatedBudget ? `₹${itinerary.totalEstimatedBudget}` : 'Eco Budget',
-    estimated_cost_inr: itinerary.totalEstimatedBudget || 12000,
+    estimated_cost_inr: Math.min(5000000, Math.max(500, itinerary.totalEstimatedBudget || 12000)),
     carbon_footprint_saved_kg: (itinerary.days?.length || 3) * 22,
     itinerary_data: itinerary,
   };
 
-  if (isSupabaseConfigured() && supabase && userId) {
+  if (isSupabaseConfigured() && supabase && safeUserId && safeUserId !== 'demo-user') {
     try {
       const { data, error } = await supabase
         .from('saved_itineraries')
@@ -443,40 +477,34 @@ export async function saveUserItinerary(
         const saved = data as SavedItinerary;
         // Also cache locally
         try {
-          const local = await fetchUserSavedItineraries(userId);
-          localStorage.setItem(STORAGE_SAVED_ITINERARIES_KEY, JSON.stringify([saved, ...local.filter(l => l.id !== saved.id)]));
+          const local = await fetchUserSavedItineraries(safeUserId);
+          localStorage.setItem(STORAGE_SAVED_ITINERARIES_KEY, JSON.stringify([saved, ...local.filter(l => l.id !== saved.id)].slice(0, 50)));
         } catch (e) {
           // ignore
         }
         return { success: true, data: saved };
       }
       if (error) {
-        console.warn('Supabase saveUserItinerary error:', error.message);
+        safeLogger.warn('Supabase saveUserItinerary error:', error.message);
       }
     } catch (err: any) {
-      console.warn('Supabase saveUserItinerary exception:', err.message);
+      safeLogger.warn('Supabase saveUserItinerary exception:', err.message);
     }
   }
 
   // Fallback local save
   const localSaved: SavedItinerary = {
     id: `itin-${Date.now()}`,
-    user_id: userId || 'demo-user',
-    title: itinerary.title || 'Jharkhand Eco Circuit',
-    duration_days: itinerary.days?.length || 3,
-    budget_level: itinerary.totalEstimatedBudget ? `₹${itinerary.totalEstimatedBudget}` : 'Eco Budget',
-    estimated_cost_inr: itinerary.totalEstimatedBudget || 12000,
-    carbon_footprint_saved_kg: (itinerary.days?.length || 3) * 22,
-    itinerary_data: itinerary,
+    ...newRecord,
     created_at: new Date().toISOString(),
   };
 
   try {
     const raw = localStorage.getItem(STORAGE_SAVED_ITINERARIES_KEY);
     const existing = raw ? JSON.parse(raw) : [];
-    localStorage.setItem(STORAGE_SAVED_ITINERARIES_KEY, JSON.stringify([localSaved, ...existing]));
+    localStorage.setItem(STORAGE_SAVED_ITINERARIES_KEY, JSON.stringify([localSaved, ...existing].slice(0, 50)));
   } catch (err) {
-    console.warn('Error saving to local storage:', err);
+    safeLogger.warn('Error saving to local storage:', err);
   }
 
   return { success: true, data: localSaved };
@@ -489,19 +517,22 @@ export async function deleteUserSavedItinerary(
   id: string,
   userId: string
 ): Promise<{ success: boolean }> {
-  if (isSupabaseConfigured() && supabase && userId) {
+  const safeId = sanitizeDbSearchTerm(id, 80);
+  const safeUserId = sanitizeDbSearchTerm(userId, 80);
+
+  if (isSupabaseConfigured() && supabase && safeUserId && safeId) {
     try {
       const { error } = await supabase
         .from('saved_itineraries')
         .delete()
-        .eq('id', id)
-        .eq('user_id', userId);
+        .eq('id', safeId)
+        .eq('user_id', safeUserId);
 
       if (error) {
-        console.warn('Supabase deleteUserSavedItinerary error:', error.message);
+        safeLogger.warn('Supabase deleteUserSavedItinerary error:', error.message);
       }
     } catch (err) {
-      console.warn('Supabase deleteUserSavedItinerary exception:', err);
+      safeLogger.warn('Supabase deleteUserSavedItinerary exception:', err);
     }
   }
 
@@ -509,11 +540,11 @@ export async function deleteUserSavedItinerary(
     const raw = localStorage.getItem(STORAGE_SAVED_ITINERARIES_KEY);
     if (raw) {
       const existing: SavedItinerary[] = JSON.parse(raw);
-      const filtered = existing.filter((item) => item.id !== id);
+      const filtered = existing.filter((item) => item.id !== safeId);
       localStorage.setItem(STORAGE_SAVED_ITINERARIES_KEY, JSON.stringify(filtered));
     }
   } catch (err) {
-    console.warn('Error deleting from local storage:', err);
+    safeLogger.warn('Error deleting from local storage:', err);
   }
 
   return { success: true };

@@ -7,6 +7,7 @@ import { InteractiveMap } from '../components/interactive-map';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { resolveLocationCoords } from '../services/routing';
+import { SEO } from '../components/seo';
 
 interface MapPageProps {
   navigate: (path: string) => void;
@@ -162,6 +163,13 @@ export function MapPage({
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 py-8 md:py-12 text-stone-900 dark:text-white transition-colors duration-200">
+      <SEO
+        title="Interactive GIS Eco-Tourism Map — Live Crowd & Offline GPS Navigation"
+        description="Interactive GIS satellite and terrain map of Jharkhand. Real-time tourist crowd density zones, turn-by-turn road routing, offline GPS tile downloads, and local artisan vendor markers."
+        keywords="Jharkhand GIS map, offline tourism map Jharkhand, Betla national park map, Hundru falls GPS coordinates, Patratu valley route, Jharkhand crowd density map"
+        canonicalPath="/map"
+        ogType="website"
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         {/* Header Bar */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

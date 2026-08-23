@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './lib/theme-context';
 import { AuthProvider } from './lib/auth-context';
 import { PWAProvider } from './lib/pwa-context';
+import { I18nProvider } from './lib/i18n-context';
 import { SiteHeader } from './components/site-header';
 import { SiteFooter } from './components/site-footer';
 import { MobileBottomNav } from './components/mobile-bottom-nav';
+import { MobileQuickActions } from './components/mobile-quick-actions';
 import { PWAInstallBanner } from './components/pwa-install-banner';
 import { HomePage } from './routes/index';
 import { ExplorePage } from './routes/explore';
@@ -106,13 +108,24 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <PWAProvider>
-          <div className="min-h-screen flex flex-col bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans selection:bg-emerald-500 selection:text-white">
-            <PWAInstallBanner />
-            <SiteHeader currentPath={currentPath} navigate={navigate} />
-            <main className="flex-1 pb-16 md:pb-0">{renderRoute()}</main>
-            <SiteFooter navigate={navigate} />
-            <MobileBottomNav currentPath={currentPath} navigate={navigate} />
-          </div>
+          <I18nProvider>
+            <div 
+              className="min-h-screen min-h-[100dvh] flex flex-col bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 font-sans selection:bg-emerald-500 selection:text-white"
+              style={{ minHeight: '100dvh' }}
+            >
+              <PWAInstallBanner />
+              <SiteHeader currentPath={currentPath} navigate={navigate} />
+              <main 
+                className={`flex-1 w-full min-h-0 ${currentPath === '/map' ? 'pb-16 md:pb-0' : 'pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-0'}`}
+                style={{ minHeight: 0 }}
+              >
+                {renderRoute()}
+              </main>
+              {currentPath !== '/map' && <SiteFooter navigate={navigate} />}
+              <MobileQuickActions currentPath={currentPath} navigate={navigate} />
+              <MobileBottomNav currentPath={currentPath} navigate={navigate} />
+            </div>
+          </I18nProvider>
         </PWAProvider>
       </AuthProvider>
     </ThemeProvider>

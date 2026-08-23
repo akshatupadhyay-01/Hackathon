@@ -13,6 +13,14 @@ import {
   Landmark,
   TreePine,
   Activity,
+  X,
+  MapPin,
+  QrCode,
+  Download,
+  Flame,
+  PhoneCall,
+  Home,
+  CheckCircle2,
 } from 'lucide-react';
 import { Destination, Category, District } from '../types/database';
 import { fetchDestinations, fetchCategories, fetchDistricts } from '../services/destinations';
@@ -20,6 +28,10 @@ import { DestinationCard } from '../components/destination-card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Section } from '../components/section';
+import { EmergencyHelpModal } from '../components/emergency-help-modal';
+import { SEO } from '../components/seo';
+import { usePWA } from '../lib/pwa-context';
+import { useI18n } from '../lib/i18n-context';
 
 interface HomePageProps {
   navigate: (path: string) => void;
@@ -31,6 +43,9 @@ export function HomePage({ navigate }: HomePageProps) {
   const [districts, setDistricts] = useState<District[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sosModalOpen, setSosModalOpen] = useState(false);
+  const { triggerHaptic } = usePWA();
+  const { t, isHindi } = useI18n();
 
   useEffect(() => {
     async function loadData() {
@@ -81,6 +96,13 @@ export function HomePage({ navigate }: HomePageProps) {
 
   return (
     <div className="flex flex-col min-h-screen">
+      <SEO
+        title="Johar Jharkhand — Official Eco & Cultural Tourism Platform"
+        description="Discover Jharkhand's sacred hills, cascades, living tribal heritage, and national parks. Book certified indigenous guides, authentic rural homestays, digital eco-passes, and explore live crowd-monitored GIS maps."
+        keywords="Jharkhand tourism, eco tourism Jharkhand, Betla National Park, Hundru Falls, Netarhat sunset, Parasnath Shikharji, Patratu valley, Dokra craft, Sohrai art, SIH25032"
+        canonicalPath="/"
+        ogType="website"
+      />
       {/* 1. Hero Banner Section — Rich Forest & Teal Gradient */}
       <div className="relative min-h-[480px] sm:min-h-[540px] md:min-h-[620px] flex items-center justify-center overflow-hidden bg-gradient-to-b from-stone-950 via-emerald-950 to-stone-950 text-white py-14 sm:py-16 md:py-20">
         {/* Background Image with High Contrast Gradients */}
@@ -98,55 +120,64 @@ export function HomePage({ navigate }: HomePageProps) {
         <div className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4 sm:space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-xs sm:text-sm font-semibold backdrop-blur-md shadow-lg">
             <Leaf className="h-4 w-4 text-emerald-400 shrink-0" />
-            <span>Jharkhand Eco & Cultural Tourism Platform</span>
+            <span>{t('brand.badge', 'Jharkhand Eco & Cultural Tourism Platform')}</span>
           </div>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight sm:leading-none">
-            Discover Untamed{' '}
+            {t('home.heroTitle1', 'Discover Untamed')}{' '}
             <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">
-              Jharkhand
+              {t('home.heroTitle2', 'Jharkhand')}
             </span>
             <br />
             <span className="block mt-2 text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold text-stone-100">
-              Sacred Hills, Cascades & Living Tribal Art
+              {t('home.heroSubtitle', 'Sacred Hills, Cascades & Living Tribal Art')}
             </span>
           </h1>
 
           <p className="text-xs sm:text-base md:text-lg text-stone-200 max-w-3xl mx-auto font-normal leading-relaxed">
-            Experience community-driven, carbon-conscious travel across 8 eco-rich districts. Connect with certified indigenous guides, book tribal homestays, and celebrate Dokra and Sohrai artisans.
+            {t('home.heroDescription', 'Experience community-driven, carbon-conscious travel across 8 eco-rich districts. Connect with certified indigenous guides, book tribal homestays, and celebrate Dokra and Sohrai artisans.')}
           </p>
 
-          {/* Search Bar */}
+          {/* Search Bar with Clear Button */}
           <form
             onSubmit={handleSearchSubmit}
-            className="w-full max-w-2xl mx-auto mt-4 sm:mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-emerald-500/20"
+            className="w-full max-w-2xl mx-auto mt-4 sm:mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-1.5 sm:p-2 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-emerald-500/20"
           >
-            <div className="relative flex-1 w-full flex items-center pl-3">
-              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-stone-400 mr-2.5 shrink-0" />
+            <div className="relative flex-1 w-full flex items-center pl-3 pr-2">
+              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-stone-400 mr-2 shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search Betla, Hundru, Netarhat, Dokra art..."
+                placeholder={t('home.searchPlaceholder', 'Search Betla, Hundru, Netarhat, Dokra art...')}
                 className="w-full bg-transparent border-none text-stone-900 dark:text-stone-100 text-xs sm:text-sm placeholder:text-stone-400 focus:outline-none py-2.5 min-w-0"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="p-1 rounded-full text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <Button
               type="submit"
-              className="w-full sm:w-auto px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs sm:text-sm shrink-0 cursor-pointer h-11"
+              className="w-full sm:w-auto px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs sm:text-sm shrink-0 cursor-pointer h-10 sm:h-11"
             >
-              Explore Now
+              {t('home.exploreNow', 'Explore Now')}
             </Button>
           </form>
 
-          {/* Quick Category Pills */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 pt-2 max-w-2xl mx-auto">
-            <span className="text-xs text-stone-300 font-semibold shrink-0">Quick Filters:</span>
+          {/* Quick Category Pills with Horizontal Touch Scroll */}
+          <div className="flex items-center justify-start sm:justify-center gap-1.5 sm:gap-2 pt-2 max-w-2xl mx-auto overflow-x-auto no-scrollbar pb-1 px-1">
+            <span className="text-xs text-stone-300 font-semibold shrink-0">{t('home.quickFilters', 'Quick Filters:')}</span>
             {categories.slice(0, 5).map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => navigate(`/explore?category=${cat.slug}`)}
-                className="text-xs px-3 py-1 rounded-full bg-stone-900/80 hover:bg-emerald-800/80 border border-emerald-700/50 text-stone-200 hover:text-white transition-colors backdrop-blur-sm cursor-pointer whitespace-nowrap"
+                className="text-xs px-3 py-1 rounded-full bg-stone-900/80 hover:bg-emerald-800/80 border border-emerald-700/50 text-stone-200 hover:text-white transition-colors backdrop-blur-sm cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
               >
                 {cat.name}
               </button>
@@ -154,6 +185,117 @@ export function HomePage({ navigate }: HomePageProps) {
           </div>
         </div>
       </div>
+
+
+      {/* Mobile-Only Quick Action Hub: 6 Instant Thumb-Tap Tiles */}
+      <div className="md:hidden bg-gradient-to-b from-stone-900 via-stone-950 to-stone-900 border-b border-stone-800 px-4 py-4">
+        <div className="flex items-center justify-between mb-2.5 px-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Mobile Speed Hub</span>
+          </span>
+          <span className="text-[10px] text-stone-400 font-medium">1-Tap Fast Travel</span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {/* 1. Eco Map & GPS */}
+          <button
+            onClick={() => {
+              triggerHaptic(12);
+              navigate('/map');
+            }}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-stone-900/90 border border-emerald-500/30 text-center active:scale-95 transition-transform"
+          >
+            <div className="h-9 w-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-1.5">
+              <Compass className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold text-stone-100 block leading-tight">Eco Map</span>
+            <span className="text-[9px] text-stone-400 block mt-0.5">Live GPS</span>
+          </button>
+
+          {/* 2. AI Trip Planner */}
+          <button
+            onClick={() => {
+              triggerHaptic(12);
+              navigate('/trip-planner');
+            }}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-gradient-to-b from-emerald-950/80 to-stone-900 border border-emerald-400/40 text-center active:scale-95 transition-transform"
+          >
+            <div className="h-9 w-9 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center mb-1.5">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold text-stone-100 block leading-tight">AI Planner</span>
+            <span className="text-[9px] text-amber-300 font-semibold block mt-0.5">Custom In 10s</span>
+          </button>
+
+          {/* 3. Tribal Artisans & Crafts */}
+          <button
+            onClick={() => {
+              triggerHaptic(12);
+              navigate('/discover-local');
+            }}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-stone-900/90 border border-amber-500/30 text-center active:scale-95 transition-transform"
+          >
+            <div className="h-9 w-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-1.5">
+              <Palette className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold text-stone-100 block leading-tight">Artisans</span>
+            <span className="text-[9px] text-stone-400 block mt-0.5">Dokra Crafts</span>
+          </button>
+
+          {/* 4. Waterfalls & Sanctuaries */}
+          <button
+            onClick={() => {
+              triggerHaptic(12);
+              navigate('/explore?category=waterfalls');
+            }}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-stone-900/90 border border-teal-500/30 text-center active:scale-95 transition-transform"
+          >
+            <div className="h-9 w-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center mb-1.5">
+              <Waves className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold text-stone-100 block leading-tight">Waterfalls</span>
+            <span className="text-[9px] text-stone-400 block mt-0.5">Cascades</span>
+          </button>
+
+          {/* 5. Digital Eco Passes */}
+          <button
+            onClick={() => {
+              triggerHaptic(12);
+              navigate('/profile?tab=passes');
+            }}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-stone-900/90 border border-emerald-500/30 text-center active:scale-95 transition-transform"
+          >
+            <div className="h-9 w-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center mb-1.5">
+              <QrCode className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold text-stone-100 block leading-tight">Eco Passes</span>
+            <span className="text-[9px] text-stone-400 block mt-0.5">QR Entry</span>
+          </button>
+
+          {/* 6. Emergency Forest SOS (Instant 112) */}
+          <button
+            onClick={() => {
+              triggerHaptic(20);
+              setSosModalOpen(true);
+            }}
+            className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-rose-950/60 border border-rose-500/50 text-center active:scale-95 transition-transform"
+          >
+            <div className="h-9 w-9 rounded-xl bg-rose-500/30 text-rose-300 flex items-center justify-center mb-1.5">
+              <span className="text-base">🆘</span>
+            </div>
+            <span className="text-xs font-black text-rose-200 block leading-tight">Forest SOS</span>
+            <span className="text-[9px] text-rose-300 font-bold block mt-0.5">24x7 Help</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Emergency Help Modal */}
+      <EmergencyHelpModal
+        isOpen={sosModalOpen}
+        onClose={() => setSosModalOpen(false)}
+        navigate={navigate}
+      />
 
       {/* 2. Key SIH Pillar Highlights — Clean Light Neutral Surface */}
       <div className="border-y border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/70 py-6 sm:py-8">

@@ -1,0 +1,28 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Allow: /explore
+Allow: /destinations/
+Allow: /map
+Allow: /discover-local
+Allow: /trip-planner
+Allow: /business
+Allow: /manifest.webmanifest
+Allow: /icon-192.svg
+Allow: /icon-512.svg
+
+# Disallow private user/admin dashboards and authentication pages
+Disallow: /admin
+Disallow: /profile
+Disallow: /my-trips
+Disallow: /my-reservations
+Disallow: /signin
+Disallow: /login
+Disallow: /signup
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /api/
+
+# Sitemaps
+Sitemap: /sitemap.xml
