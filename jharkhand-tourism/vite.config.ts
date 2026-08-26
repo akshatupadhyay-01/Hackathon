@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import { generateItinerary } from './src/server/itineraryService';
-import { SimpleRateLimiter, SECURITY_LIMITS, redactSecrets } from './src/lib/security';
+import { SimpleRateLimiter, SECURITY_LIMITS, redactSecrets } from './src/utils/security';
 
 const rateLimiter = new SimpleRateLimiter(60000, 30); // 30 requests / minute max
 

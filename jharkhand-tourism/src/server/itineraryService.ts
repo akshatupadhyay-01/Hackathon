@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { ItineraryRequest, ItineraryResponse, ItineraryDayPlan } from '../types/index';
+import { ItineraryRequest, ItineraryResponse, ItineraryDayPlan } from '../types';
 import { SEED_DESTINATIONS, SEED_GUIDES, SEED_VENDORS } from '../data/jharkhand';
-import { sanitizePromptInput, sanitizeStringList, redactSecrets, safeLogger, SECURITY_LIMITS } from '../lib/security';
+import { sanitizePromptInput, sanitizeStringList, redactSecrets, safeLogger, SECURITY_LIMITS } from '../utils/security';
 
 export async function generateItinerary(
   reqBody: Partial<ItineraryRequest>,
