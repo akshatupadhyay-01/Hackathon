@@ -3175,7 +3175,49 @@
             "imported_commit": "c6ec40c1d49693b25ef4a752d0474f08253aab5d"
           }
         ],
-        "unique_commit_count": 6
+        "unique_commit_count": 6,
+        "current_directory": "Jharkhand tourism/First Hackathon Project/",
+        "current_history_branches": [
+          {
+            "name": "main",
+            "ref": "history/first-hackathon-project/main",
+            "original_commit": "9753630225354b05c29e709d7103bec4acd87455",
+            "imported_commit": "185b048dcc1413b0161e1accb488ae5c2ead7cf9"
+          },
+          {
+            "name": "restructure",
+            "ref": "history/first-hackathon-project/restructure",
+            "original_commit": "2645d7dc6f0f7d7db98fb61cb68a51f0cb7b1cd8",
+            "imported_commit": "299670638a4c713a0b542e548353e5d5dc47eb79"
+          }
+        ],
+        "current_path_commit_mapping": [
+          {
+            "original_commit": "87a2f1dc3db573ca02974ba94faeedd51c3af472",
+            "imported_commit": "2739990cc2e5444e0e641c3f1ed0639f0da84f30"
+          },
+          {
+            "original_commit": "d046413ce04135d0b46873cecf7c968c6497d7f6",
+            "imported_commit": "c28de81a2f50d11123ca88ebfd3b3481d850ee25"
+          },
+          {
+            "original_commit": "5275467adcfab94dce9eac591ed1fa25ee5d761e",
+            "imported_commit": "f9818c2730cbc457d053fd93a68a3e58b9d377bc"
+          },
+          {
+            "original_commit": "7d530ec94e336da1235d7fb45c5ca82bce2fbe8e",
+            "imported_commit": "5922931f724b5300e24e7e9aab37f3b7051bc21f"
+          },
+          {
+            "original_commit": "2645d7dc6f0f7d7db98fb61cb68a51f0cb7b1cd8",
+            "imported_commit": "299670638a4c713a0b542e548353e5d5dc47eb79"
+          },
+          {
+            "original_commit": "9753630225354b05c29e709d7103bec4acd87455",
+            "imported_commit": "185b048dcc1413b0161e1accb488ae5c2ead7cf9"
+          }
+        ],
+        "current_path_unique_commit_count": 6
       },
       "commit_activity": {
         "87a2f1dc3db573ca02974ba94faeedd51c3af472": {
@@ -4257,7 +4299,23 @@
             "imported_commit": "d1e201c998a27da20a4922b21a2a72932ec4a6ad"
           }
         ],
-        "unique_commit_count": 1
+        "unique_commit_count": 1,
+        "current_directory": "Jharkhand tourism/Second Hackathon Project/",
+        "current_history_branches": [
+          {
+            "name": "main",
+            "ref": "history/second-hackathon-project/main",
+            "original_commit": "b7e4ef9a71af492b046fa70d680bd3771d95be46",
+            "imported_commit": "83257c07187cf4c594e44fb1af3ca55cbfac7451"
+          }
+        ],
+        "current_path_commit_mapping": [
+          {
+            "original_commit": "b7e4ef9a71af492b046fa70d680bd3771d95be46",
+            "imported_commit": "83257c07187cf4c594e44fb1af3ca55cbfac7451"
+          }
+        ],
+        "current_path_unique_commit_count": 1
       },
       "commit_activity": {
         "b7e4ef9a71af492b046fa70d680bd3771d95be46": {

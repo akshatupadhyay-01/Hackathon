@@ -2,15 +2,20 @@
 
 This repository contains both hackathon projects as regular directories:
 
-- `jharkhand-tourism/` — First Hackathon Project
-- `johar-jharkhand-tourism/` — Second Hackathon Project
+- `Jharkhand tourism/First Hackathon Project/` — First Hackathon Project
+- `Jharkhand tourism/Second Hackathon Project/` — Second Hackathon Project
 
-The original Git commit histories are also imported into this repository under
-their respective project directories. GitHub repository data that cannot be
-represented as files or commits (including pull request and deployment records)
-is archived in `history-archive/github-data-before-standalone-repo-deletion.json`.
-The archive includes a mapping from original commit IDs to the path-prefixed
-commit IDs in this repository.
+Both projects' original Git histories are preserved in this repository under
+these branches, with their files rooted at the matching project directories:
+
+- `history/first-hackathon-project/main`
+- `history/first-hackathon-project/restructure`
+- `history/second-hackathon-project/main`
+
+GitHub repository data that cannot be represented as files or commits
+(including pull request and deployment records) is archived in
+`history-archive/github-data-before-standalone-repo-deletion.json`. The archive
+maps original commit IDs to the imported history.
 
 The standalone repositories were the source for this migration; their original
 commit IDs and repository URLs are recorded in the archive.
