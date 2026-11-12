@@ -1,0 +1,6 @@
+[submodule "jharkhand-tourism"]
+	path = jharkhand-tourism
+	url = https://github.com/akshatupadhyay-01/jharkhand-tourism.git
+[submodule "johar-jharkhand-tourism"]
+	path = johar-jharkhand-tourism
+	url = https://github.com/akshatupadhyay-01/johar-jharkhand-tourism.git
