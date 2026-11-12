@@ -14,8 +14,8 @@ these branches, with their files rooted at the matching project directories:
 
 GitHub repository data that cannot be represented as files or commits
 (including pull request and deployment records) is archived in
-`history-archive/github-data-before-standalone-repo-deletion.json`. The archive
-maps original commit IDs to the imported history.
+`Jharkhand tourism/PR-Deployment backup/history-archive/github-data-before-standalone-repo-deletion.json`.
+The archive maps original commit IDs to the imported history.
 
 The standalone repositories were the source for this migration; their original
 commit IDs and repository URLs are recorded in the archive.
