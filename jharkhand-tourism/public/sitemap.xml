@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  
+  <!-- Homepage -->
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://johar-jharkhand-tourism.gov.in/" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://johar-jharkhand-tourism.gov.in/?lang=hi" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://johar-jharkhand-tourism.gov.in/" />
+  </url>
+
+  <!-- Explore All Eco & Cultural Destinations -->
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/explore</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://johar-jharkhand-tourism.gov.in/explore" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://johar-jharkhand-tourism.gov.in/explore?lang=hi" />
+  </url>
+
+  <!-- Interactive GIS Eco-Map & Crowd Density -->
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/map</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://johar-jharkhand-tourism.gov.in/map" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://johar-jharkhand-tourism.gov.in/map?lang=hi" />
+  </url>
+
+  <!-- Local Guides, Artisans & Dokra Crafts -->
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/discover-local</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://johar-jharkhand-tourism.gov.in/discover-local" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://johar-jharkhand-tourism.gov.in/discover-local?lang=hi" />
+  </url>
+
+  <!-- AI Smart Itinerary Planner -->
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/trip-planner</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://johar-jharkhand-tourism.gov.in/trip-planner" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://johar-jharkhand-tourism.gov.in/trip-planner?lang=hi" />
+  </url>
+
+  <!-- Business, Homestay & Guide Partner Portal -->
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/business</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://johar-jharkhand-tourism.gov.in/business" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://johar-jharkhand-tourism.gov.in/business?lang=hi" />
+  </url>
+
+  <!-- Individual Destinations -->
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/destinations/betla-national-park</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=800&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>Betla National Park Tiger Reserve, Latehar Jharkhand</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/destinations/hundru-falls</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=800&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>Hundru Falls 320ft Subarnarekha Waterfall, Ranchi Jharkhand</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/destinations/netarhat-sunset-point</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>Netarhat Hill Station Sunset Point, Latehar Jharkhand</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/destinations/parasnath-hills-shikharji</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>Parasnath Hills Shikharji Jain Pilgrimage, Giridih Jharkhand</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/destinations/patratu-valley</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>Patratu Valley Serpentine Ghats and Dam Lake, Ramgarh Jharkhand</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/destinations/baba-baidyanath-dham</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1582510003544-4d00b7f74220?w=800&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>Baba Baidyanath Dham Holy Jyotirlinga Temple, Deoghar Jharkhand</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/destinations/saranda-forest-kiriburu</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>Saranda Forest 700 Hills and Kiriburu Hills, West Singhbhum Jharkhand</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://johar-jharkhand-tourism.gov.in/destinations/jonha-falls</loc>
+    <lastmod>2026-08-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>Jonha Gautamdhara Falls and Buddhist Sanctuary, Ranchi Jharkhand</image:title>
+    </image:image>
+  </url>
+
+</urlset>
